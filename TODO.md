@@ -84,11 +84,13 @@
 
 ---
 
-### 🔗 阶段 9：tRPC 接口暴露（可选，后续与渲染器对接）
-- [ ] 9.1 定义 tRPC router：`src/main/trpc/routers/report.ts`
-  - `report.generate(input) -> { jobId }` 或直接返回结果
-- [ ] 9.2 在 preload 暴露 tRPC 客户端
-- [ ] 9.3 前端调用验证（待 UI 完成后）
+### ✅ 阶段 9：tRPC 接口暴露（已完成）
+- [x] 9.1 定义 tRPC router：`src/main/trpc/routers/report.ts`
+  - `report.generate(input)` 同步返回结果
+  - `template.list/getMeta/validate` 模板管理接口
+  - `file.selectSourceFile/selectOutputDir/openInFolder` 文件操作接口
+- [x] 9.2 在 preload 暴露 tRPC 客户端
+- [x] 9.3 创建前端测试页面 `ReportTest.vue` 并验证完整流程
 
 ---
 
@@ -107,22 +109,26 @@
 
 ## 📊 当前进度总结
 
-### ✅ 已完成（阶段 1-7）
+### ✅ 已完成（阶段 1-9）
 - 基础设施：配置、目录结构、工具函数
 - 类型系统：完整的类型定义与错误体系
 - 模板系统：注册中心 + 示例模板 month1carbone
 - 服务层：excelToData + dataToReport 完整实现
 - 测试工具：命令行验证脚本 + 测试指南文档
+- **tRPC 集成**：类型安全的 IPC 通信层，完整的前后端打通
+  - Template/File/Report 三个 Router
+  - Preload 客户端暴露
+  - 前端测试页面（ReportTest.vue）
 
 ### 🚧 待完成
-- **阶段 7.5**：准备测试 Excel 并验证完整链路
+- **阶段 7.5**：准备测试 Excel 并验证完整链路（命令行或 UI）
 - **阶段 8**：打包与生产环境验证
 
 ### 🎯 下一步行动
-1. 准备一个测试用的 Excel 文件（参考 TESTING.md）
-2. 运行 `pnpm test:report` 验证报表生成
+1. 在 UI 中测试完整的报表生成流程（选择文件 → 生成 → 打开文件夹）
+2. 准备测试 Excel 文件并验证不同模板
 3. 执行 `pnpm run build:unpack` 验证打包配置
-4. 在生产环境中测试模板路径解析
+4. 在生产环境中测试模板路径解析和 tRPC 功能
 
 ---
 
@@ -144,6 +150,20 @@
 - `src/main/services/utils/naming.ts` - 命名策略
 - `src/main/services/utils/fileOps.ts` - 文件操作
 
+### tRPC 通信层
+- `src/main/trpc/context.ts` - tRPC 上下文定义
+- `src/main/trpc/trpc.ts` - tRPC 实例初始化
+- `src/main/trpc/router.ts` - 根 router（导出 AppRouter 类型）
+- `src/main/trpc/routers/template.ts` - 模板管理 Router
+- `src/main/trpc/routers/file.ts` - 文件操作 Router
+- `src/main/trpc/routers/report.ts` - 报表生成 Router
+- `src/preload/index.ts` - 已修改，暴露 tRPC 客户端
+- `src/preload/index.d.ts` - 已更新类型定义
+
+### 前端页面
+- `src/renderer/src/views/ReportTest.vue` - tRPC 测试页面
+- `src/renderer/src/App.vue` - 已修改为展示测试页面
+
 ### 测试与文档
 - `scripts/test-report-generation.ts` - 命令行测试脚本
 - `TESTING.md` - 测试指南
@@ -151,7 +171,7 @@
 
 ### 配置
 - `electron-builder.yml` - 已添加 extraResources 配置
-- `package.json` - 已添加 test:report 脚本与 date-fns、tsx 依赖
+- `package.json` - 已添加 tRPC、zod、superjson 等依赖
 
 ---
 

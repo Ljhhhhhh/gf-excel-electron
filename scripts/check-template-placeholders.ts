@@ -27,7 +27,7 @@ async function checkTemplatePlaceholders(): Promise<void> {
 
     const placeholders = new Set<string>()
 
-    sheet.eachRow((row, rowNumber) => {
+    sheet.eachRow((row) => {
       row.eachCell((cell) => {
         const value = cell.value
 

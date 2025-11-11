@@ -24,13 +24,17 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@trpc/client": "^10.45.2",
+    "@trpc/server": "^10.45.2",
     "carbone": "^3.5.6",
     "date-fns": "^4.1.0",
     "electron-trpc": "^0.7.1",
     "element-plus": "^2.11.7",
     "exceljs": "^4.4.0",
     "execa": "^9.6.0",
-    "vue-router": "^4.6.3"
+    "superjson": "^2.2.5",
+    "vue-router": "^4.6.3",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "3.0.0",
