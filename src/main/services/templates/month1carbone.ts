@@ -173,13 +173,9 @@ export function buildReportData(parsedData: ParsedData, userInput?: unknown): un
   })
   const businessCount = uniqueContracts.size
 
-  // 8. 计算平均保理利率（如果有资金费报价字段）
-  // 注：当前数据源暂无此字段，返回占位符
-  const factoringRate = '待定'
-
   // 返回 Carbone 渲染数据
   // 注意：Carbone 对嵌套对象支持有限，直接使用扁平结构
-  return {
+  const result = {
     queryYear: queryYear.toString(),
     queryMonth: queryMonth.toString(),
     total: total.toFixed(2),
@@ -188,9 +184,10 @@ export function buildReportData(parsedData: ParsedData, userInput?: unknown): un
     factoringPercentage: factoringPercentage.toFixed(2),
     accountsReceivable: accountsReceivable.toFixed(2),
     customerTotal: customerTotal.toString(),
-    businessCount: businessCount.toString(),
-    factoringRate
+    businessCount: businessCount.toString()
   }
+  console.log(result, 'result')
+  return result
 }
 
 // ========== 模板定义与导出 ==========

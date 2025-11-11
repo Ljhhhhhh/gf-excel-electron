@@ -73,6 +73,7 @@ async function generateReport(options: TestOptions): Promise<void> {
 
   let resultBuffer: Buffer
   try {
+    console.log(reportData, 'reportData')
     const result = await renderAsync(templatePath, reportData as object, carboneOptions)
     resultBuffer = result as Buffer
     console.log(`✅ 渲染完成 - 文件大小: ${(resultBuffer.length / 1024).toFixed(2)} KB\n`)
@@ -130,11 +131,11 @@ async function main(): Promise<void> {
 
   const options: TestOptions = {
     sourcePath: path.join(projectRoot, 'public/demo/放款明细.xlsx'),
-    templatePath: path.join(projectRoot, 'public/reportTemplates/month1carbone-fixed.xlsx'),
+    templatePath: path.join(projectRoot, 'public/reportTemplates/month1carbone.xlsx'),
     outputDir: path.join(projectRoot, 'output'),
     queryYear: 2025,
     queryMonth: 10,
-    outputFileName: `month1carbone-FIXED-${Date.now()}.xlsx`
+    outputFileName: `month1carbone-${Date.now()}.xlsx`
   }
 
   try {

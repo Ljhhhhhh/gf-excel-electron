@@ -1,48 +1,74 @@
 /**
- * 检查模板占位符
+ * 检查模板文件中的占位符
  */
 
 import ExcelJS from 'exceljs'
-import { join } from 'path'
+import path from 'node:path'
 
-async function checkPlaceholders(): Promise<void> {
-  const templatePath = join(process.cwd(), 'public/reportTemplates/month1carbone.xlsx')
-  
+async function checkTemplatePlaceholders(): Promise<void> {
+  const projectRoot = process.cwd()
+  const templatePath = path.join(projectRoot, 'public/reportTemplates/month1carbone.xlsx')
+
+  console.log('📄 读取模板文件:', templatePath)
+  console.log()
+
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.readFile(templatePath)
-  
-  const ws = workbook.worksheets[0]
-  console.log('工作表名称:', ws.name)
-  console.log('\n前10行的内容:')
-  
-  for (let rowNum = 1; rowNum <= 10; rowNum++) {
-    const row = ws.getRow(rowNum)
-    let hasContent = false
-    let rowContent = `第${rowNum}行: `
-    
-    row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-      const value = cell.value
-      if (value) {
-        hasContent = true
-        rowContent += `[列${colNumber}] ${JSON.stringify(value)} `
-      }
+
+  console.log('📊 模板工作表列表:')
+  workbook.worksheets.forEach((sheet, index) => {
+    console.log(`  [${index}] ${sheet.name}`)
+  })
+  console.log()
+
+  // 遍历所有工作表
+  workbook.worksheets.forEach((sheet) => {
+    console.log(`\n=== 工作表: ${sheet.name} ===\n`)
+
+    const placeholders = new Set<string>()
+
+    sheet.eachRow((row, rowNumber) => {
+      row.eachCell((cell) => {
+        const value = cell.value
+
+        // 检查字符串类型的单元格
+        if (typeof value === 'string') {
+          // 匹配 Carbone 占位符 {xxx}
+          const matches = value.match(/\{[^}]+\}/g)
+          if (matches) {
+            matches.forEach((match) => placeholders.add(match))
+          }
+        }
+
+        // 检查富文本
+        if (value && typeof value === 'object' && 'richText' in value) {
+          const richText = value as ExcelJS.CellRichTextValue
+          richText.richText.forEach((textObj) => {
+            const matches = textObj.text.match(/\{[^}]+\}/g)
+            if (matches) {
+              matches.forEach((match) => placeholders.add(match))
+            }
+          })
+        }
+      })
     })
-    
-    if (hasContent) {
-      console.log(rowContent)
+
+    if (placeholders.size > 0) {
+      console.log('找到的占位符:')
+      Array.from(placeholders)
+        .sort()
+        .forEach((placeholder) => {
+          console.log(`  ${placeholder}`)
+        })
+    } else {
+      console.log('  (未找到占位符)')
     }
-  }
-  
-  // 特别检查 A1 单元格
-  console.log('\n=== A1 单元格详细信息 ===')
-  const cellA1 = ws.getCell('A1')
-  console.log('原始值:', cellA1.value)
-  console.log('类型:', typeof cellA1.value)
-  
-  if (cellA1.value && typeof cellA1.value === 'object') {
-    console.log('对象键:', Object.keys(cellA1.value))
-    console.log('完整对象:', JSON.stringify(cellA1.value, null, 2))
-  }
+  })
+
+  console.log('\n✅ 检查完成')
 }
 
-checkPlaceholders().catch(console.error)
+checkTemplatePlaceholders().catch((error) => {
+  console.error('❌ 错误:', error)
+  process.exit(1)
+})
