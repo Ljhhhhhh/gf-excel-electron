@@ -42,6 +42,7 @@ export function getTemplate(id: TemplateId): TemplateDefinition {
  * 列出所有已注册的模板元信息
  */
 export function listTemplates(): TemplateMeta[] {
+  console.log(`[Registry] 列出所有已注册的模板元信息`, Array.from(templateRegistry.values()))
   return Array.from(templateRegistry.values()).map((def) => def.meta)
 }
 

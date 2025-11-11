@@ -5,7 +5,7 @@ import { createIPCHandler } from 'electron-trpc/main'
 import icon from '../../resources/icon.png?asset'
 import { appRouter } from './trpc/router'
 import { createContext } from './trpc/context'
-import './services/templates' // 初始化模板注册中心
+import { initTemplates } from './services/templates' // 初始化模板注册中心
 
 let mainWindow: BrowserWindow | null = null
 
@@ -60,6 +60,7 @@ if (!gotTheLock) {
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
   app.whenReady().then(() => {
+    initTemplates()
     // Set app user model id for windows
     electronApp.setAppUserModelId('com.electron')
 
