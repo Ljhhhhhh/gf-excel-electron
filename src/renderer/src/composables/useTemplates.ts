@@ -19,8 +19,8 @@ async function loadTemplates() {
 
 function selectTemplate(id: string) {
   currentTemplateId.value = id
-  const t = templates.value.find((x) => x.id === id)
-  currentTemplateName.value = t ? t.name : ''
+  const t = templates.value.find((x) => (x.id || x.meta?.id) === id)
+  currentTemplateName.value = t ? t.name || t.meta?.name || '' : ''
 }
 
 export function useTemplates() {
@@ -34,4 +34,3 @@ export function useTemplates() {
     selectTemplate
   }
 }
-
