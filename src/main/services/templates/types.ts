@@ -88,8 +88,8 @@ export interface TemplateMeta {
   id: TemplateId
   /** 模板显示名称 */
   name: string
-  /** 模板文件名（如 'month1carbone.xlsx'） */
-  filename: string
+  /** 模板文件名（如 'month1carbone.xlsx'），ExcelJS 模式不需要 */
+  filename?: string
   /** 模板文件扩展名（当前仅 xlsx） */
   ext: 'xlsx'
   /** 支持的源文件扩展名 */
@@ -173,6 +173,27 @@ export interface CarboneRenderOptions {
   [key: string]: unknown
 }
 
+// ========== 渲染引擎类型 ==========
+
+/**
+ * 渲染引擎类型
+ * - carbone: 使用 Carbone 模板渲染（需要模板文件）
+ * - exceljs: 使用 ExcelJS 从零创建（不需要模板文件）
+ */
+export type RenderEngine = 'carbone' | 'exceljs'
+
+/**
+ * ExcelJS 渲染器函数签名
+ * @param parsedData 解析后的数据
+ * @param userInput 用户输入参数
+ * @param outputPath 输出文件路径
+ */
+export type ExcelJSRenderer<TInput = unknown> = (
+  parsedData: ParsedData,
+  userInput: TInput | undefined,
+  outputPath: string
+) => Promise<void>
+
 // ========== 模板完整定义 ==========
 
 /**
@@ -182,6 +203,8 @@ export interface CarboneRenderOptions {
 export interface TemplateDefinition<TInput = unknown> {
   /** 元信息 */
   meta: TemplateMeta
+  /** 渲染引擎类型 */
+  engine: RenderEngine
   /**
    * 用户输入参数规则（基于 formCreate）
    * - undefined: 模板不需要用户输入
@@ -190,10 +213,12 @@ export interface TemplateDefinition<TInput = unknown> {
   inputRule?: TemplateInputRule
   /** 解析器函数 */
   parser: TemplateParser
-  /** 报表数据构建器（类型安全的 userInput） */
-  builder: (parsedData: ParsedData, userInput?: TInput) => unknown
-  /** Carbone 默认选项（可被 renderOptions 覆写） */
+  /** 报表数据构建器（类型安全的 userInput）- Carbone 模式使用 */
+  builder?: (parsedData: ParsedData, userInput?: TInput) => unknown
+  /** Carbone 默认选项（可被 renderOptions 覆写）- Carbone 模式使用 */
   carboneOptions?: CarboneRenderOptions
+  /** ExcelJS 渲染器 - ExcelJS 模式使用 */
+  excelRenderer?: ExcelJSRenderer<TInput>
   /** 报表后处理钩子（可选，用于对生成的 Excel 文件进行额外处理） */
   postProcess?: (outputPath: string, userInput?: TInput) => Promise<void>
 }

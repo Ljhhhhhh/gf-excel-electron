@@ -143,6 +143,7 @@ export const basicTemplate: TemplateDefinition = {
     supportedSourceExts: ['xlsx', 'xls'],
     description: '基础报表模板（无需额外参数）'
   },
+  engine: 'carbone',
   // 无 inputRule，表示不需要用户输入
   parser: parseWorkbook,
   builder: buildReportData,

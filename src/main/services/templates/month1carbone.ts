@@ -260,6 +260,7 @@ export const month1carboneTemplate: TemplateDefinition<Month1CarboneInput> = {
     supportedSourceExts: ['xlsx', 'xls'],
     description: '标准月度报表，支持多表聚合'
   },
+  engine: 'carbone',
   inputRule: {
     rules: inputRules,
     options: {

@@ -59,9 +59,21 @@ export function validateTemplate(id: TemplateId): { ok: boolean; issues?: string
 
   const issues: string[] = []
 
-  // 检查模板文件是否存在
-  if (!templateExists(definition.meta.filename)) {
-    issues.push(`模板文件不存在: ${definition.meta.filename}`)
+  // ExcelJS 模式不需要模板文件，Carbone 模式需要检查文件是否存在
+  if (definition.engine === 'carbone') {
+    if (!definition.meta.filename) {
+      issues.push(`Carbone 模板缺少 filename 字段`)
+    } else if (!templateExists(definition.meta.filename)) {
+      issues.push(`模板文件不存在: ${definition.meta.filename}`)
+    }
+  }
+
+  // 检查必要的函数是否存在
+  if (definition.engine === 'carbone' && !definition.builder) {
+    issues.push(`Carbone 模板缺少 builder 函数`)
+  }
+  if (definition.engine === 'exceljs' && !definition.excelRenderer) {
+    issues.push(`ExcelJS 模板缺少 excelRenderer 函数`)
   }
 
   return {
