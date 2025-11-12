@@ -7,6 +7,7 @@ import carbone from 'carbone'
 import fs from 'node:fs'
 import path from 'node:path'
 import { promisify } from 'node:util'
+import * as XLSX from 'xlsx-js-style'
 import type { DataToReportInput, DataToReportResult } from './templates/types'
 import { getTemplate } from './templates/registry'
 import { ReportRenderError, OutputWriteError, OutputDirNotSelectedError } from './errors'
@@ -100,7 +101,46 @@ export async function dataToReport(input: DataToReportInput): Promise<DataToRepo
     throw new OutputWriteError(outputPath, error)
   }
 
-  // 10. 获取文件大小并返回结果
+  // 10. 如果有 postProcess 钩子，先用 xlsx-js-style 规范化 Carbone 生成的文件
+  // xlsx-js-style 对格式更宽容，可以读取 Carbone 的输出并重写为规范格式
+  if (template.postProcess) {
+    console.log(`[dataToReport] 检测到 postProcess 钩子，先规范化文件格式...`)
+    try {
+      const tempPath = `${outputPath}.temp.xlsx`
+
+      // 使用 xlsx-js-style 读取 Carbone 生成的文件（对格式更宽容）
+      const workbook = XLSX.readFile(outputPath)
+      console.log(`[dataToReport] 使用 xlsx-js-style 读取 Carbone 文件成功`)
+
+      // 重新写入文件（这会规范化文件结构，使 ExcelJS 能读取）
+      XLSX.writeFile(workbook, tempPath)
+      console.log(`[dataToReport] 已规范化并保存到临时文件`)
+
+      // 删除原 Carbone 文件
+      deleteFileIfExists(outputPath)
+
+      // 将临时文件重命名为原文件名
+      fs.renameSync(tempPath, outputPath)
+      console.log(`[dataToReport] 文件格式规范化完成，现在 ExcelJS 可以读取了`)
+    } catch (normalizeError) {
+      console.warn(`[dataToReport] 文件规范化失败:`, normalizeError)
+      console.warn(`[dataToReport] 将尝试直接执行 postProcess（可能失败）`)
+    }
+  }
+
+  // 11. 调用后处理钩子（如果存在）
+  if (template.postProcess) {
+    console.log(`[dataToReport] 开始执行后处理钩子...`)
+    try {
+      await template.postProcess(outputPath, userInput)
+      console.log(`[dataToReport] 后处理钩子执行完成`)
+    } catch (error) {
+      console.error(`[dataToReport] 后处理钩子执行失败:`, error)
+      throw new ReportRenderError(templateId, error)
+    }
+  }
+
+  // 11. 获取文件大小并返回结果
   const size = getFileSize(outputPath)
   const generatedAt = new Date()
 

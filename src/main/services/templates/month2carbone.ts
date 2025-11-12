@@ -7,6 +7,7 @@
 import type { Workbook } from 'exceljs'
 import type { TemplateDefinition, ParseOptions, ParsedData, FormCreateRule } from './types'
 import { parseSimpleTable } from '../utils/xlsx'
+import { processExcelReport } from '../postProcess/month2Post'
 
 // ========== 解析选项接口 ==========
 
@@ -258,6 +259,39 @@ export function buildReportData(parsedData: ParsedData, userInput?: unknown): un
   return result
 }
 
+// ========== 后处理钩子实现 ==========
+
+/**
+ * 报表后处理钩子
+ * 对 Carbone 生成的 Excel 文件进行额外处理：
+ * 1. 隐藏超出 queryMonth 的月份列
+ * 2. 合并 A1:A2 单元格并居中
+ * 3. 根据实际数据月份调整标题合并范围
+ *
+ * @param outputPath 生成的报表文件路径
+ * @param userInput 用户输入的参数（包含 queryMonth）
+ */
+async function postProcessReport(outputPath: string, userInput?: unknown): Promise<void> {
+  if (!userInput || typeof userInput !== 'object') {
+    console.warn('[month2carbone] postProcess: 缺少 userInput，跳过后处理')
+    return
+  }
+
+  const input = userInput as Month2CarboneInput
+  const { queryMonth } = input
+
+  console.log(`[month2carbone] 开始后处理: ${outputPath}，数据截止月份: ${queryMonth}`)
+
+  await processExcelReport({
+    inputPath: outputPath,
+    outputPath, // 直接覆盖原文件
+    lastDataMonth: queryMonth,
+    sheetName: 'Sheet1'
+  })
+
+  console.log(`[month2carbone] 后处理完成`)
+}
+
 // ========== 模板定义与导出 ==========
 
 export const month2carboneTemplate: TemplateDefinition<Month2CarboneInput> = {
@@ -300,5 +334,6 @@ export const month2carboneTemplate: TemplateDefinition<Month2CarboneInput> = {
   carboneOptions: {
     lang: 'zh-cn',
     timezone: 'Asia/Shanghai'
-  }
+  },
+  postProcess: postProcessReport
 }

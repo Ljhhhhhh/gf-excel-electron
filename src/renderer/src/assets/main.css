@@ -1,13 +1,49 @@
 @import './base.css';
 
 body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background-image: url('./wavy-lines.svg');
-  background-size: cover;
-  user-select: none;
+  margin: 0;
+  min-height: 100vh;
+  background-color: #f6f7fb;
+  background-repeat: no-repeat;
+  background-size: auto, auto, cover;
+  background-attachment: fixed;
+  color: #303133;
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+body::before {
+  background:
+    radial-gradient(900px 600px at 10% 0%, rgba(102, 177, 255, 0.14), transparent 40%),
+    radial-gradient(800px 500px at 90% 80%, rgba(197, 91, 171, 0.14), transparent 40%),
+    url('./wavy-lines.svg');
+  background-repeat: no-repeat;
+  background-size: auto, auto, cover;
+  background-attachment: fixed;
+  animation: breathe 10s ease-in-out infinite;
+}
+
+body::after {
+  background: radial-gradient(400px 300px at 60% 40%, rgba(255,255,255,0.04), transparent 50%);
+  filter: blur(20px);
+  animation: pulse 8s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { filter: brightness(1) saturate(1); }
+  50% { filter: brightness(1.08) saturate(1.06); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.02); }
 }
 
 code {
@@ -27,11 +63,7 @@ code {
 }
 
 #app {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  margin-bottom: 80px;
+  height: 100vh;
 }
 
 .logo {
@@ -125,17 +157,18 @@ code {
 }
 
 .versions {
-  position: absolute;
-  bottom: 30px;
-  margin: 0 auto;
-  padding: 15px 0;
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 14px;
   font-family: 'Menlo', 'Lucida Console', monospace;
   display: inline-flex;
   overflow: hidden;
   align-items: center;
-  border-radius: 22px;
-  background-color: #202127;
-  backdrop-filter: blur(24px);
+  border-radius: 16px;
+  background-color: rgba(32, 33, 39, 0.6);
+  backdrop-filter: blur(14px);
 }
 
 .versions li {

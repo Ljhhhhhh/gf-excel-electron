@@ -140,6 +140,15 @@ export type TemplateParser = (workbook: Workbook, parseOptions?: ParseOptions) =
  */
 export type TemplateReportBuilder = (parsedData: ParsedData, userInput?: unknown) => unknown
 
+/**
+ * 报表后处理钩子函数签名
+ * 在 Carbone 渲染完成后，对生成的 Excel 文件进行额外处理（如隐藏列、合并单元格等）
+ * @param outputPath 生成的报表文件路径
+ * @param userInput 用户输入的参数（与 builder 中的 userInput 相同）
+ * @returns Promise<void>
+ */
+export type PostProcessHook = (outputPath: string, userInput?: unknown) => Promise<void>
+
 // ========== Carbone 渲染选项 ==========
 
 /**
@@ -185,6 +194,8 @@ export interface TemplateDefinition<TInput = unknown> {
   builder: (parsedData: ParsedData, userInput?: TInput) => unknown
   /** Carbone 默认选项（可被 renderOptions 覆写） */
   carboneOptions?: CarboneRenderOptions
+  /** 报表后处理钩子（可选，用于对生成的 Excel 文件进行额外处理） */
+  postProcess?: (outputPath: string, userInput?: TInput) => Promise<void>
 }
 
 // ========== 服务层接口 ==========

@@ -2,6 +2,7 @@ import './assets/main.css'
 
 import { createApp } from 'vue'
 import App from './App.vue'
+import router from './router'
 import FormCreate from '@form-create/element-ui'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
@@ -13,5 +14,6 @@ app.use(ElementPlus)
 
 // 注册 formCreate
 app.use(FormCreate)
+app.use(router)
 
 app.mount('#app')
