@@ -46,6 +46,18 @@
           <label>报表名称:</label>
           <input v-model="reportName" type="text" placeholder="可选，留空使用默认名称" />
         </div>
+        <!-- 动态模板参数表单 -->
+        <div class="form-item template-params">
+          <label>模板参数:</label>
+          <div class="params-container">
+            <TemplateInputForm
+              ref="templateFormRef"
+              :template-id="selectedTemplateId"
+              @change="handleParamsChange"
+              @ready="handleParamsReady"
+            />
+          </div>
+        </div>
         <div class="form-actions">
           <button :disabled="!canGenerate || generating" class="primary" @click="generateReport">
             {{ generating ? '生成中...' : '生成报表' }}
@@ -78,6 +90,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { trpc } from '../utils/trpc'
+import TemplateInputForm from '../components/TemplateInputForm.vue'
 
 // 状态
 const templates = ref<any[]>([])
@@ -85,6 +98,8 @@ const selectedTemplateId = ref<string | null>(null)
 const sourcePath = ref<string | null>(null)
 const outputDir = ref<string | null>(null)
 const reportName = ref('')
+const templateFormRef = ref<InstanceType<typeof TemplateInputForm>>()
+const userInput = ref<Record<string, any>>({})
 const result = ref<any>(null)
 const loading = ref({
   templates: false
@@ -93,8 +108,20 @@ const generating = ref(false)
 
 // 计算属性
 const canGenerate = computed(() => {
-  return selectedTemplateId.value && sourcePath.value && outputDir.value
+  return !!(selectedTemplateId.value && sourcePath.value && outputDir.value)
 })
+
+// 处理模板参数变化
+function handleParamsChange(formData: Record<string, any>) {
+  userInput.value = formData
+  console.log('[ReportTest] 模板参数变化:', formData)
+}
+
+// 处理模板参数就绪
+function handleParamsReady(formData: Record<string, any>) {
+  userInput.value = formData
+  console.log('[ReportTest] 模板参数就绪:', formData)
+}
 
 // 加载模板列表
 async function loadTemplates() {
@@ -146,6 +173,15 @@ async function selectOutputDir() {
 async function generateReport() {
   if (!canGenerate.value) return
 
+  // 验证模板参数表单
+  if (templateFormRef.value) {
+    const isValid = await templateFormRef.value.validate()
+    if (!isValid) {
+      alert('请完善模板参数')
+      return
+    }
+  }
+
   generating.value = true
   result.value = null
 
@@ -154,7 +190,8 @@ async function generateReport() {
       templateId: selectedTemplateId.value!,
       sourcePath: sourcePath.value!,
       outputDir: outputDir.value!,
-      reportName: reportName.value || undefined
+      reportName: reportName.value || undefined,
+      userInput: Object.keys(userInput.value).length > 0 ? userInput.value : undefined
     })
 
     console.log('[ReportTest] 生成结果:', res)
@@ -315,6 +352,24 @@ button.primary:hover:not(:disabled) {
 .form-item input:disabled {
   background: #f5f5f5;
   color: #999;
+}
+
+.form-item.template-params {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.form-item.template-params label {
+  width: auto;
+  margin-bottom: 10px;
+}
+
+.params-container {
+  width: 100%;
+  padding: 15px;
+  background: #fafafa;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
 }
 
 .form-actions {

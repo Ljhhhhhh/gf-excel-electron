@@ -33,7 +33,9 @@ const generateInputSchema = z.object({
   /** 模板解析选项（可选） */
   parseOptions: z.record(z.string(), z.unknown()).optional(),
   /** Carbone 渲染选项（可选） */
-  renderOptions: z.record(z.string(), z.unknown()).optional()
+  renderOptions: z.record(z.string(), z.unknown()).optional(),
+  /** 用户输入参数（可选，如年月等模板特定参数） */
+  userInput: z.record(z.string(), z.unknown()).optional()
 })
 
 /**
@@ -63,7 +65,8 @@ export const reportRouter = router({
         parsedData: parseResult.data,
         outputDir: input.outputDir,
         reportName: input.reportName,
-        renderOptions: input.renderOptions
+        renderOptions: input.renderOptions,
+        userInput: input.userInput
       })
 
       const duration = Date.now() - startTime

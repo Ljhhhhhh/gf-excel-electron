@@ -5,6 +5,74 @@
 import type { Workbook } from 'exceljs'
 import type { Warning } from '../errors'
 
+// ========== formCreate 规则类型 ==========
+
+/**
+ * formCreate Rule 类型（简化版，实际使用时由 @form-create/element-ui 提供完整类型）
+ * 这里定义基础结构以支持序列化和类型检查
+ */
+export interface FormCreateRule {
+  /** 组件类型 */
+  type: string
+  /** 字段名 */
+  field: string
+  /** 字段标题 */
+  title: string
+  /** 默认值 */
+  value?: any
+  /** 组件属性 */
+  props?: Record<string, any>
+  /** 验证规则 */
+  validate?: Array<{
+    required?: boolean
+    message?: string
+    trigger?: string | string[]
+    type?: string
+    min?: number
+    max?: number
+    pattern?: string
+    validator?: (rule: any, value: any, callback: (error?: Error) => void) => void
+    [key: string]: any
+  }>
+  /** 选项列表（用于 select、radio、checkbox 等） */
+  options?: Array<{ label: string; value: any; [key: string]: any }>
+  /** 是否显示 */
+  display?: boolean
+  /** 联动字段 */
+  link?: string[]
+  /** 更新回调 */
+  update?: (value: any, rule: FormCreateRule, fApi: any) => void
+  /** 子组件 */
+  children?: FormCreateRule[]
+  /** 其他配置 */
+  [key: string]: any
+}
+
+/**
+ * 模板输入参数规则（基于 formCreate）
+ */
+export interface TemplateInputRule {
+  /** formCreate 规则数组 */
+  rules: FormCreateRule[]
+  /** 表单配置（可选） */
+  options?: {
+    /** 表单标签宽度 */
+    labelWidth?: string | number
+    /** 表单标签位置 */
+    labelPosition?: 'left' | 'right' | 'top'
+    /** 是否显示提交按钮 */
+    submitBtn?: boolean
+    /** 是否显示重置按钮 */
+    resetBtn?: boolean
+    /** 其他 formCreate option */
+    [key: string]: any
+  }
+  /** 示例数据（帮助文档） */
+  example?: Record<string, unknown>
+  /** 参数说明（Markdown 格式） */
+  description?: string
+}
+
 // ========== 模板标识与元信息 ==========
 
 /**
@@ -99,15 +167,22 @@ export interface CarboneRenderOptions {
 // ========== 模板完整定义 ==========
 
 /**
- * 模板完整定义
+ * 模板完整定义（支持泛型输入类型）
+ * @template TInput 用户输入参数类型
  */
-export interface TemplateDefinition {
+export interface TemplateDefinition<TInput = unknown> {
   /** 元信息 */
   meta: TemplateMeta
+  /**
+   * 用户输入参数规则（基于 formCreate）
+   * - undefined: 模板不需要用户输入
+   * - TemplateInputRule: 使用 formCreate 动态生成表单
+   */
+  inputRule?: TemplateInputRule
   /** 解析器函数 */
   parser: TemplateParser
-  /** 报表数据构建器 */
-  builder: TemplateReportBuilder
+  /** 报表数据构建器（类型安全的 userInput） */
+  builder: (parsedData: ParsedData, userInput?: TInput) => unknown
   /** Carbone 默认选项（可被 renderOptions 覆写） */
   carboneOptions?: CarboneRenderOptions
 }
@@ -154,6 +229,8 @@ export interface DataToReportInput {
   reportName?: string
   /** Carbone 渲染选项（可选覆写） */
   renderOptions?: CarboneRenderOptions
+  /** 用户输入参数（模板特定参数，如年月等） */
+  userInput?: unknown
 }
 
 /**

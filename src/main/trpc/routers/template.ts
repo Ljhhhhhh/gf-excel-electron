@@ -74,5 +74,42 @@ export const templateRouter = router({
           message: '校验模板失败'
         })
       }
+    }),
+
+  /**
+   * 获取模板的 inputRule（用于前端渲染表单）
+   */
+  getInputRule: publicProcedure
+    .input(
+      z.object({
+        templateId: z.string().min(1, '模板 ID 不能为空')
+      })
+    )
+    .query(({ input }) => {
+      try {
+        const template = getTemplate(input.templateId)
+
+        if (!template) {
+          throw new TemplateNotFoundError(input.templateId)
+        }
+
+        // 返回 formCreate rule（可序列化的 JSON）
+        return {
+          templateId: input.templateId,
+          inputRule: template.inputRule || null
+        }
+      } catch (error) {
+        if (error instanceof TemplateNotFoundError) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: error.message
+          })
+        }
+        console.error('[Template Router] getInputRule failed:', error)
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '获取模板输入规则失败'
+        })
+      }
     })
 })

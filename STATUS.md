@@ -8,6 +8,7 @@
 ## ✅ 已完成的工作
 
 ### 1️⃣ 基础设施（阶段 1）
+
 - ✅ 修改 `electron-builder.yml`，添加 extraResources 配置
 - ✅ 创建完整目录结构（services/templates/utils）
 - ✅ 实现核心工具函数
@@ -16,11 +17,13 @@
   - 文件操作工具
 
 ### 2️⃣ 类型系统（阶段 2）
+
 - ✅ 定义完整的类型体系 (`templates/types.ts`)
 - ✅ 统一错误类定义 (`errors.ts`)
 - ✅ Warning 结构定义
 
 ### 3️⃣ 模板系统（阶段 3-4）
+
 - ✅ 模板注册中心实现
 - ✅ 示例模板 `month1carbone` 完整实现
   - 支持多表聚合
@@ -29,12 +32,12 @@
   - Carbone 数据模型构建
 
 ### 4️⃣ 核心服务（阶段 5-6）
+
 - ✅ **excelToData 服务**
   - 文件校验（大小、扩展名）
   - ExcelJS 解析
   - 模板解析器调度
   - 错误处理与警告收集
-  
 - ✅ **dataToReport 服务**
   - Carbone 渲染
   - 默认选项合并
@@ -42,12 +45,14 @@
   - 耗时统计
 
 ### 5️⃣ 测试工具（阶段 7）
+
 - ✅ 命令行测试脚本 (`scripts/test-report-generation.ts`)
 - ✅ npm script 配置 (`pnpm test:report`)
 - ✅ 测试指南文档 (`TESTING.md`)
 - ✅ 功能使用文档 (`README-REPORT.md`)
 
 ### 6️⃣ 代码质量
+
 - ✅ TypeScript 类型检查通过
 - ✅ 遵循 ESLint 规范
 - ✅ 完整的错误处理
@@ -58,6 +63,7 @@
 ## 📊 技术实现概览
 
 ### 技术栈
+
 - **Electron** + **electron-vite** - 应用框架
 - **Carbone 3.5.6** - 模板渲染引擎
 - **ExcelJS 4.4.0** - Excel 文件解析
@@ -65,6 +71,7 @@
 - **TypeScript** - 类型安全
 
 ### 核心能力
+
 ```typescript
 // 1. 解析 Excel
 const result = await excelToData({
@@ -82,12 +89,13 @@ const report = await dataToReport({
 })
 
 // 3. 结果
-console.log(report.outputPath)  // 文件路径
-console.log(report.size)        // 文件大小
+console.log(report.outputPath) // 文件路径
+console.log(report.size) // 文件大小
 console.log(report.generatedAt) // 生成时间
 ```
 
 ### 已创建文件（13 个）
+
 ```
 src/main/services/
 ├── errors.ts
@@ -120,7 +128,9 @@ scripts/
 ### 立即执行（验证已完成功能）
 
 #### 1. 准备测试 Excel
+
 创建 `test-data.xlsx`，包含任意标准表格数据，例如：
+
 ```
 | 姓名 | 部门   | 金额  | 日期       |
 |------|--------|-------|------------|
@@ -129,6 +139,7 @@ scripts/
 ```
 
 #### 2. 运行测试
+
 ```bash
 # 创建输出目录
 mkdir output
@@ -138,12 +149,14 @@ pnpm test:report --templateId=month1carbone --source=./test-data.xlsx --outDir=.
 ```
 
 **预期结果**：
+
 - ✅ 解析完成，显示数据源信息
 - ✅ 报表生成完成，显示文件路径
 - ✅ 总耗时 < 1 秒
 - ✅ 在 `output/` 目录找到生成的 xlsx 文件
 
 #### 3. 打包验证
+
 ```bash
 # 打包（不生成安装包）
 pnpm run build:unpack
@@ -158,11 +171,13 @@ pnpm run build:unpack
 ## 🚧 待完成工作
 
 ### 短期（本周）
+
 - [ ] 完成上述测试验证
 - [ ] 确认打包配置正确
 - [ ] 解决任何发现的问题
 
 ### 中期（1-2 周）
+
 - [ ] tRPC 接口暴露
 - [ ] 前端 UI 开发
   - 模板选择界面
@@ -171,6 +186,7 @@ pnpm run build:unpack
   - 结果下载/预览
 
 ### 长期（未来）
+
 - [ ] 任务队列与并发控制
 - [ ] 批量生成功能
 - [ ] 更多模板示例
@@ -208,7 +224,7 @@ pnpm run build:unpack
 
 **当前状态**：核心功能开发完成 ✅  
 **代码质量**：类型检查通过，无重大错误 ✅  
-**文档完整性**：使用指南、测试说明齐全 ✅  
+**文档完整性**：使用指南、测试说明齐全 ✅
 
 **下一个里程碑**：完成测试验证 → 打包部署验证 → tRPC 接口开发
 

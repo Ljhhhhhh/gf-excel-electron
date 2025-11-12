@@ -24,6 +24,7 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@form-create/element-ui": "^3.1.0",
     "@trpc/client": "^10.45.2",
     "@trpc/server": "^10.45.2",
     "carbone": "^3.5.6",

@@ -11,7 +11,7 @@ import { promisify } from 'node:util'
 import {
   parseWorkbook,
   buildReportData,
-  type ReportInput
+  type Month1CarboneInput
 } from '../src/main/services/templates/month1carbone'
 
 // 将 carbone.render 转为 Promise
@@ -54,7 +54,7 @@ async function generateReport(options: TestOptions): Promise<void> {
 
   // ========== 步骤 3: 构建报表数据 ==========
   console.log('⏳ [3/5] 构建报表数据...')
-  const userInput: ReportInput = {
+  const userInput: Month1CarboneInput = {
     queryYear,
     queryMonth
   }

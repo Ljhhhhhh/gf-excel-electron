@@ -94,6 +94,7 @@ pnpm test:report --templateId=month1carbone --source=./test-data.xlsx --outDir=.
 ```
 
 常见错误码：
+
 - `TEMPLATE_NOT_FOUND` - 模板不存在或未注册
 - `EXCEL_UNSUPPORTED_FILE` - 文件不支持或不存在
 - `EXCEL_FILE_TOO_LARGE` - 文件超过 100MB 限制
@@ -122,6 +123,7 @@ pnpm test:report --templateId=month1carbone --source=./test-data.xlsx --outDir=.
 ## 单元测试（待实现）
 
 后续可添加：
+
 - 模板解析器单元测试
 - 路径解析工具测试
 - 错误包装测试
@@ -129,6 +131,7 @@ pnpm test:report --templateId=month1carbone --source=./test-data.xlsx --outDir=.
 ## 集成测试（待实现）
 
 后续可添加：
+
 - 完整报表生成流程测试
 - 并发生成测试
 - 边界条件测试

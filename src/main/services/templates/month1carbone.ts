@@ -4,7 +4,7 @@
  */
 
 import type { Workbook } from 'exceljs'
-import type { TemplateDefinition, ParseOptions, ParsedData } from './types'
+import type { TemplateDefinition, ParseOptions, ParsedData, FormCreateRule } from './types'
 import { parseSimpleTable } from '../utils/xlsx'
 
 // ========== 解析选项接口 ==========
@@ -70,12 +70,71 @@ export function parseWorkbook(
 /**
  * 用户输入的查询参数
  */
-export interface ReportInput {
+export interface Month1CarboneInput {
   /** 查询年份，如 2024 */
   queryYear: number
   /** 查询月份，1-12 */
   queryMonth: number
 }
+
+// ========== formCreate 规则定义 ==========
+
+/**
+ * 月报模板的 formCreate 规则
+ */
+const inputRules: FormCreateRule[] = [
+  {
+    type: 'InputNumber',
+    field: 'queryYear',
+    title: '查询年份',
+    value: new Date().getFullYear(),
+    props: {
+      placeholder: '请输入年份',
+      min: 1900,
+      max: 2100,
+      step: 1,
+      controlsPosition: 'right'
+    },
+    validate: [
+      { required: true, message: '请输入查询年份', trigger: 'blur' },
+      {
+        type: 'number',
+        min: 1900,
+        max: 2100,
+        message: '年份必须在1900-2100之间',
+        trigger: 'blur'
+      }
+    ]
+  },
+  {
+    type: 'Select',
+    field: 'queryMonth',
+    title: '查询月份',
+    value: new Date().getMonth() + 1,
+    options: [
+      { label: '1月', value: 1 },
+      { label: '2月', value: 2 },
+      { label: '3月', value: 3 },
+      { label: '4月', value: 4 },
+      { label: '5月', value: 5 },
+      { label: '6月', value: 6 },
+      { label: '7月', value: 7 },
+      { label: '8月', value: 8 },
+      { label: '9月', value: 9 },
+      { label: '10月', value: 10 },
+      { label: '11月', value: 11 },
+      { label: '12月', value: 12 }
+    ],
+    props: {
+      placeholder: '请选择月份',
+      clearable: true
+    },
+    validate: [
+      { required: true, message: '请选择查询月份', trigger: 'change' },
+      { type: 'number', min: 1, max: 12, message: '月份必须在1-12之间', trigger: 'change' }
+    ]
+  }
+]
 
 // ========== 数据构建器实现 ==========
 
@@ -90,7 +149,7 @@ export function buildReportData(parsedData: ParsedData, userInput?: unknown): un
     throw new Error('缺少必需的用户输入参数 (queryYear, queryMonth)')
   }
 
-  const input = userInput as ReportInput
+  const input = userInput as Month1CarboneInput
   const { queryYear, queryMonth } = input
   const data = parsedData as Month1ParsedData
 
@@ -192,7 +251,7 @@ export function buildReportData(parsedData: ParsedData, userInput?: unknown): un
 
 // ========== 模板定义与导出 ==========
 
-export const month1carboneTemplate: TemplateDefinition = {
+export const month1carboneTemplate: TemplateDefinition<Month1CarboneInput> = {
   meta: {
     id: 'month1carbone',
     name: '月度报表模板',
@@ -200,6 +259,27 @@ export const month1carboneTemplate: TemplateDefinition = {
     ext: 'xlsx',
     supportedSourceExts: ['xlsx', 'xls'],
     description: '标准月度报表，支持多表聚合'
+  },
+  inputRule: {
+    rules: inputRules,
+    options: {
+      labelWidth: '100px',
+      labelPosition: 'right',
+      submitBtn: false,
+      resetBtn: false
+    },
+    example: {
+      queryYear: 2024,
+      queryMonth: 11
+    },
+    description: `
+### 参数说明
+- **查询年份**: 筛选指定年份的放款数据
+- **查询月份**: 筛选指定月份的放款数据（1-12）
+
+### 使用示例
+选择 "2024年 11月" 将生成 2024年11月 的放款统计报表。
+    `.trim()
   },
   parser: parseWorkbook,
   builder: buildReportData,

@@ -62,14 +62,15 @@ const templates = await trpc.template.list.query()
 ```
 
 **返回类型**：
+
 ```typescript
 interface TemplateMeta {
-  id: string              // 模板 ID
-  name: string            // 模板显示名称
-  filename: string        // 模板文件名
-  ext: 'xlsx'             // 文件扩展名
-  supportedSourceExts: string[]  // 支持的源文件扩展名
-  description?: string    // 描述
+  id: string // 模板 ID
+  name: string // 模板显示名称
+  filename: string // 模板文件名
+  ext: 'xlsx' // 文件扩展名
+  supportedSourceExts: string[] // 支持的源文件扩展名
+  description?: string // 描述
 }
 ```
 
@@ -83,9 +84,11 @@ const meta = await trpc.template.getMeta.query({ id: 'month1carbone' })
 ```
 
 **参数**：
+
 - `id: string` - 模板 ID
 
 **错误**：
+
 - `NOT_FOUND` - 模板不存在
 
 #### `template.validate`
@@ -98,9 +101,11 @@ const result = await trpc.template.validate.query({ id: 'month1carbone' })
 ```
 
 **参数**：
+
 - `id: string` - 模板 ID
 
 **返回**：
+
 ```typescript
 {
   ok: boolean           // 是否通过校验
@@ -122,10 +127,11 @@ const result = await trpc.file.selectSourceFile.query()
 ```
 
 **返回**：
+
 ```typescript
 {
-  canceled: boolean      // 是否取消选择
-  filePath: string | null  // 选择的文件路径（取消时为 null）
+  canceled: boolean // 是否取消选择
+  filePath: string | null // 选择的文件路径（取消时为 null）
 }
 ```
 
@@ -139,10 +145,11 @@ const result = await trpc.file.selectOutputDir.query()
 ```
 
 **返回**：
+
 ```typescript
 {
-  canceled: boolean      // 是否取消选择
-  dirPath: string | null   // 选择的目录路径（取消时为 null）
+  canceled: boolean // 是否取消选择
+  dirPath: string | null // 选择的目录路径（取消时为 null）
 }
 ```
 
@@ -156,9 +163,11 @@ await trpc.file.openInFolder.mutate({ path: '/path/to/file.xlsx' })
 ```
 
 **参数**：
+
 - `path: string` - 文件或文件夹路径
 
 **错误**：
+
 - `NOT_FOUND` - 路径不存在
 
 ---
@@ -174,13 +183,14 @@ const result = await trpc.report.generate.mutate({
   templateId: 'month1carbone',
   sourcePath: '/path/to/source.xlsx',
   outputDir: '/path/to/output',
-  reportName: '月度报表-2024.xlsx',  // 可选
-  parseOptions: {},                  // 可选
-  renderOptions: {}                  // 可选
+  reportName: '月度报表-2024.xlsx', // 可选
+  parseOptions: {}, // 可选
+  renderOptions: {} // 可选
 })
 ```
 
 **参数**：
+
 ```typescript
 {
   templateId: string           // 模板 ID（必填）
@@ -193,6 +203,7 @@ const result = await trpc.report.generate.mutate({
 ```
 
 **返回**：
+
 ```typescript
 {
   success: true                // 成功标志
@@ -205,6 +216,7 @@ const result = await trpc.report.generate.mutate({
 ```
 
 **错误**：
+
 - `NOT_FOUND` - 模板不存在
 - `BAD_REQUEST` - 参数错误、文件不支持、文件过大、解析失败等
 - `INTERNAL_SERVER_ERROR` - 渲染失败、写入失败等
@@ -308,11 +320,11 @@ result.size       // ✓ 类型: number
 
 ## 错误码参考
 
-| 错误码 | 说明 | 触发场景 |
-|-------|------|---------|
-| `NOT_FOUND` | 资源不存在 | 模板不存在、文件/文件夹不存在 |
-| `BAD_REQUEST` | 请求参数错误 | 文件不支持、文件过大、解析失败 |
-| `INTERNAL_SERVER_ERROR` | 服务器内部错误 | 渲染失败、写入失败 |
+| 错误码                  | 说明           | 触发场景                       |
+| ----------------------- | -------------- | ------------------------------ |
+| `NOT_FOUND`             | 资源不存在     | 模板不存在、文件/文件夹不存在  |
+| `BAD_REQUEST`           | 请求参数错误   | 文件不支持、文件过大、解析失败 |
+| `INTERNAL_SERVER_ERROR` | 服务器内部错误 | 渲染失败、写入失败             |
 
 ---
 
@@ -321,6 +333,7 @@ result.size       // ✓ 类型: number
 ### 1. 查看主进程日志
 
 主进程会输出详细的日志，包括：
+
 - tRPC handler 挂载状态
 - 每个 API 调用的开始和结束
 - 错误堆栈
@@ -328,6 +341,7 @@ result.size       // ✓ 类型: number
 ### 2. 使用 DevTools
 
 按 `F12` 打开开发者工具，在 Console 中可以：
+
 - 查看 tRPC 调用日志
 - 查看错误详情
 - 测试 API 调用：`window.api.trpc.template.list.query()`
@@ -335,6 +349,7 @@ result.size       // ✓ 类型: number
 ### 3. 类型检查
 
 运行 `pnpm typecheck` 确保类型正确：
+
 ```bash
 pnpm typecheck
 ```
@@ -350,13 +365,14 @@ pnpm typecheck
 3. **无需修改前端代码**，类型会自动推断
 
 示例：
+
 ```typescript
 // src/main/trpc/routers/settings.ts
 export const settingsRouter = router({
   get: publicProcedure.query(() => {
     return { theme: 'dark', lang: 'zh-cn' }
   }),
-  
+
   set: publicProcedure
     .input(z.object({ key: z.string(), value: z.any() }))
     .mutation(({ input }) => {
@@ -370,7 +386,7 @@ export const appRouter = router({
   template: templateRouter,
   file: fileRouter,
   report: reportRouter,
-  settings: settingsRouter  // 新增
+  settings: settingsRouter // 新增
 })
 
 // 前端立即可用，且有类型推断：

@@ -23,9 +23,16 @@ export default defineConfig({
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),
-        '@shared': resolve('src/shared')
+        '@shared': resolve('src/shared'),
+        // 修复 @form-create/element-ui 的 Vue 3 兼容性问题
+        vue: resolve('node_modules/vue/dist/vue.esm-bundler.js')
       }
     },
-    plugins: [vue()]
+    plugins: [vue()],
+    define: {
+      // 确保 Vue 功能标志正确设置
+      __VUE_OPTIONS_API__: true,
+      __VUE_PROD_DEVTOOLS__: false
+    }
   }
 })

@@ -20,7 +20,7 @@ import superjson from 'superjson'
 import type { Context } from './context'
 
 const t = initTRPC.context<Context>().create({
-  transformer: superjson,  // ← 必须配置
+  transformer: superjson, // ← 必须配置
   errorFormatter({ shape }) {
     return shape
   }
@@ -38,7 +38,7 @@ import { appRouter } from './trpc/router'
 
 app.whenReady().then(() => {
   createWindow()
-  
+
   createIPCHandler({
     router: appRouter,
     windows: [mainWindow],
@@ -72,7 +72,7 @@ import type { AppRouter } from '@shared/trpc'
 
 export const trpc = createTRPCProxyClient<AppRouter>({
   links: [ipcLink()],
-  transformer: superjson  // ← 必须与服务端一致
+  transformer: superjson // ← 必须与服务端一致
 })
 ```
 
@@ -96,6 +96,7 @@ export const trpc = createTRPCProxyClient<AppRouter>({
 **原因**：缺少 `@trpc/client` 或 `@trpc/server`
 
 **解决**：
+
 ```bash
 pnpm add @trpc/client@^10.45.2 @trpc/server@^10.45.2
 ```
@@ -109,11 +110,13 @@ pnpm add @trpc/client@^10.45.2 @trpc/server@^10.45.2
 ## 测试验证
 
 启动开发服务器：
+
 ```bash
 pnpm dev
 ```
 
 在 Vue 组件中测试：
+
 ```typescript
 import { trpc } from '@/utils/trpc'
 

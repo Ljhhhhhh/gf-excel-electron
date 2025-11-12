@@ -130,6 +130,10 @@ export function buildReportData(parsedData: ParsedData): unknown {
 
 // ========== 模板定义与导出 ==========
 
+/**
+ * 基础模板：无需用户输入参数的示例
+ * inputRule 为 undefined 表示此模板不需要额外的用户输入
+ */
 export const basicTemplate: TemplateDefinition = {
   meta: {
     id: 'basic',
@@ -137,8 +141,9 @@ export const basicTemplate: TemplateDefinition = {
     filename: 'basic.xlsx',
     ext: 'xlsx',
     supportedSourceExts: ['xlsx', 'xls'],
-    description: '基础报表模板'
+    description: '基础报表模板（无需额外参数）'
   },
+  // 无 inputRule，表示不需要用户输入
   parser: parseWorkbook,
   builder: buildReportData,
   carboneOptions: {

@@ -3,6 +3,7 @@
 ## 概述
 
 本项目实现了基于模板的 Excel 报表生成功能，支持：
+
 - 📊 从源 Excel 文件解析数据
 - 🎨 使用 Carbone 模板引擎渲染报表
 - 🔄 支持多表聚合
@@ -14,11 +15,11 @@
 
 创建一个 Excel 文件（例如 `test-data.xlsx`），包含以下结构：
 
-| 姓名 | 部门 | 销售额 | 日期 |
-|------|------|--------|------------|
-| 张三 | 销售部 | 10000 | 2024-01-01 |
-| 李四 | 技术部 | 15000 | 2024-01-02 |
-| 王五 | 销售部 | 12000 | 2024-01-03 |
+| 姓名 | 部门   | 销售额 | 日期       |
+| ---- | ------ | ------ | ---------- |
+| 张三 | 销售部 | 10000  | 2024-01-01 |
+| 李四 | 技术部 | 15000  | 2024-01-02 |
+| 王五 | 销售部 | 12000  | 2024-01-03 |
 
 ### 2. 运行测试命令
 
@@ -33,6 +34,7 @@ pnpm test:report --templateId=month1carbone --source=./test-data.xlsx --outDir=.
 ### 3. 查看生成结果
 
 生成的报表将保存在指定的输出目录中，文件名格式：
+
 - 未指定名称：`<templateId>-YYYYMMDD-HHmmss.xlsx`
 - 指定名称：使用你提供的名称
 
@@ -66,26 +68,32 @@ src/main/services/
 ### 关键组件
 
 #### 1. 模板注册中心 (`templates/registry.ts`)
+
 - 管理所有可用模板
 - 提供模板注册、获取、列举功能
 - 校验模板文件存在性
 
 #### 2. 模板定义
+
 每个模板包含：
+
 - **元信息**：ID、名称、文件名、支持的源文件类型
 - **解析器**：`parseWorkbook(workbook, parseOptions)` - 从 Excel 提取数据
 - **构建器**：`buildReportData(parsedData)` - 构建 Carbone 渲染数据
 
 #### 3. 服务层
+
 - **excelToData**：读取源文件 → 校验 → 解析 → 返回结构化数据
 - **dataToReport**：构建数据 → Carbone 渲染 → 写入文件
 
 ## 添加新模板
 
 ### 步骤 1：创建模板文件
+
 将 `.xlsx` 模板文件放入 `public/reportTemplates/`
 
 ### 步骤 2：实现模板模块
+
 在 `src/main/services/templates/` 创建新文件（如 `myTemplate.ts`）：
 
 ```typescript
@@ -132,6 +140,7 @@ export const myTemplate: TemplateDefinition = {
 ```
 
 ### 步骤 3：注册模板
+
 在 `src/main/services/templates/index.ts` 中注册：
 
 ```typescript
@@ -139,15 +148,16 @@ import { myTemplate } from './myTemplate'
 
 export function initTemplates(): void {
   console.log('[Templates] 开始初始化模板系统...')
-  
+
   registerTemplate(month1carboneTemplate)
-  registerTemplate(myTemplate)  // 添加这行
-  
+  registerTemplate(myTemplate) // 添加这行
+
   console.log('[Templates] 模板系统初始化完成')
 }
 ```
 
 ### 步骤 4：测试
+
 ```bash
 pnpm test:report --templateId=myTemplate --source=./test.xlsx --outDir=./output
 ```
@@ -155,15 +165,18 @@ pnpm test:report --templateId=myTemplate --source=./test.xlsx --outDir=./output
 ## 配置说明
 
 ### Carbone 默认选项
+
 - **语言**：`zh-cn`
 - **时区**：`Asia/Shanghai`
 - 可在模板定义或运行时通过 `renderOptions` 覆盖
 
 ### 文件限制
+
 - 最大文件大小：100MB
 - 支持扩展名：`.xlsx`, `.xls`（由模板定义）
 
 ### 路径解析
+
 - 开发环境：`<项目根>/public/reportTemplates`
 - 生产环境：`<app>/resources/reportTemplates`
 - 自动根据 `app.isPackaged` 切换
@@ -171,14 +184,15 @@ pnpm test:report --templateId=myTemplate --source=./test.xlsx --outDir=./output
 ## 错误处理
 
 ### 常见错误码
-| 错误码 | 说明 | 解决方法 |
-|--------|------|----------|
-| `TEMPLATE_NOT_FOUND` | 模板不存在 | 检查 templateId 是否正确注册 |
-| `EXCEL_UNSUPPORTED_FILE` | 文件不支持 | 检查文件格式与路径 |
-| `EXCEL_FILE_TOO_LARGE` | 文件过大 | 文件需小于 100MB |
-| `EXCEL_PARSE_ERROR` | 解析失败 | 检查文件完整性与格式 |
-| `REPORT_RENDER_ERROR` | 渲染失败 | 检查模板与数据结构匹配 |
-| `OUTPUT_WRITE_ERROR` | 写入失败 | 检查输出目录权限 |
+
+| 错误码                   | 说明       | 解决方法                     |
+| ------------------------ | ---------- | ---------------------------- |
+| `TEMPLATE_NOT_FOUND`     | 模板不存在 | 检查 templateId 是否正确注册 |
+| `EXCEL_UNSUPPORTED_FILE` | 文件不支持 | 检查文件格式与路径           |
+| `EXCEL_FILE_TOO_LARGE`   | 文件过大   | 文件需小于 100MB             |
+| `EXCEL_PARSE_ERROR`      | 解析失败   | 检查文件完整性与格式         |
+| `REPORT_RENDER_ERROR`    | 渲染失败   | 检查模板与数据结构匹配       |
+| `OUTPUT_WRITE_ERROR`     | 写入失败   | 检查输出目录权限             |
 
 ## 性能考虑
 
@@ -187,12 +201,14 @@ pnpm test:report --templateId=myTemplate --source=./test.xlsx --outDir=./output
 - 总耗时：通常 < 500ms
 
 对于大文件（>10MB 或 >10000 行），考虑：
+
 - 使用 `parseOptions.maxRows` 限制行数
 - 分批处理
 
 ## 打包部署
 
 ### electron-builder 配置
+
 已在 `electron-builder.yml` 中配置：
 
 ```yaml
@@ -204,6 +220,7 @@ extraResources:
 ```
 
 ### 验证打包
+
 ```bash
 # 打包但不生成安装包
 pnpm run build:unpack
@@ -214,6 +231,7 @@ pnpm run build:unpack
 ## 下一步开发
 
 ### 待实现功能
+
 - [ ] tRPC 接口暴露给渲染进程
 - [ ] 前端 UI 界面（模板选择、文件上传、进度显示）
 - [ ] 任务队列与并发控制
@@ -221,6 +239,7 @@ pnpm run build:unpack
 - [ ] 更多模板示例
 
 ### 扩展建议
+
 - 支持 CSV 数据源
 - 字段映射自动推荐
 - PDF 导出（需 LibreOffice）
@@ -237,6 +256,7 @@ pnpm run build:unpack
 ## 技术支持
 
 遇到问题请参考：
+
 1. 错误信息中的 `code` 和 `details`
 2. 控制台日志（包含详细执行步骤）
 3. TESTING.md 中的常见问题
