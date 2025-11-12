@@ -188,13 +188,13 @@ interface JobInfo {
 ## 9. 生成策略与流程
 
 - Carbone 模式（适合复杂版式、跨格式转换）
-  1) 校验模板与数据 -> 规范化 options。
-  2) carbone.render(template, data) -> Buffer/File。
-  3) 写入用户选择的输出目录 -> 返回 job 完成与路径。
+  1. 校验模板与数据 -> 规范化 options。
+  2. carbone.render(template, data) -> Buffer/File。
+  3. 写入用户选择的输出目录 -> 返回 job 完成与路径。
 
 - ExcelJS 模式（适合纯 xlsx、细粒度单元格控制）
-  1) 打开模板工作簿 -> 按映射填充数据/写入公式/样式。
-  2) 写入用户选择的输出目录。
+  1. 打开模板工作簿 -> 按映射填充数据/写入公式/样式。
+  2. 写入用户选择的输出目录。
 
 - 批量/并发
   - JobService 控制并发度（默认 2，可在 Settings 中配置）。
@@ -204,7 +204,7 @@ interface JobInfo {
 
 ## 10. 错误处理与可观测性
 
-- 统一错误结构：{ code, message, details? }，按域划分错误码（TEMPLATE_*, DATASET_*, REPORT_*, JOB_*, EXPORT_*）。
+- 统一错误结构：{ code, message, details? }，按域划分错误码（TEMPLATE*\*, DATASET*_, REPORT\__, JOB*\*, EXPORT*\*）。
 - 日志：main 侧输出结构化日志；失败任务保留上下文（输入、栈、采样数据路径）。
 - 进度：JobInfo.progress 0~100；长任务每步推进并持久化（可选）。
 
@@ -256,12 +256,12 @@ interface JobInfo {
 
 ## 15. 里程碑（建议）
 
-1) tRPC 基础与 Preload 暴露，FsService 与 SettingsService 落地。
-2) TemplateAgent/DatasetAgent MVP（列表/新增/删除/预览）。
-3) ReportAgent（Carbone 模式）MVP：单任务生成 xlsx。
-4) ReportAgent（ExcelJS 模式）MVP：单任务生成 xlsx。
-5) JobAgent/ExportAgent：队列、进度、取消、打开文件夹。
-6) 错误码体系与日志；端到端冒烟测试。
+1. tRPC 基础与 Preload 暴露，FsService 与 SettingsService 落地。
+2. TemplateAgent/DatasetAgent MVP（列表/新增/删除/预览）。
+3. ReportAgent（Carbone 模式）MVP：单任务生成 xlsx。
+4. ReportAgent（ExcelJS 模式）MVP：单任务生成 xlsx。
+5. JobAgent/ExportAgent：队列、进度、取消、打开文件夹。
+6. 错误码体系与日志；端到端冒烟测试。
 
 ---
 
