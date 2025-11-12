@@ -5,6 +5,7 @@
 
 import { registerTemplate } from './registry'
 import { month1carboneTemplate } from './month1carbone'
+import { month2carboneTemplate } from './month2carbone'
 import { basicTemplate } from './basic'
 
 /**
@@ -16,6 +17,7 @@ export function initTemplates(): void {
 
   // 注册所有模板
   registerTemplate(month1carboneTemplate)
+  registerTemplate(month2carboneTemplate)
   registerTemplate(basicTemplate)
 
   console.log('[Templates] 模板系统初始化完成')

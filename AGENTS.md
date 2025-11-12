@@ -204,7 +204,7 @@ interface JobInfo {
 
 ## 10. 错误处理与可观测性
 
-- 统一错误结构：{ code, message, details? }，按域划分错误码（TEMPLATE*\*, DATASET*_, REPORT\__, JOB*\*, EXPORT*\*）。
+- 统一错误结构：{ code, message, details? }，按域划分错误码（TEMPLATE*\*, DATASET*\_, REPORT\_\_, JOB*\*, EXPORT*\*）。
 - 日志：main 侧输出结构化日志；失败任务保留上下文（输入、栈、采样数据路径）。
 - 进度：JobInfo.progress 0~100；长任务每步推进并持久化（可选）。
 

@@ -56,6 +56,7 @@ export async function dataToReport(input: DataToReportInput): Promise<DataToRepo
   try {
     reportData = template.builder(parsedData, userInput)
     console.log(`[dataToReport] 报表数据已构建`)
+    console.log('[dataToReport] 传递给 Carbone 的数据:', JSON.stringify(reportData, null, 2))
   } catch (error) {
     throw new ReportRenderError(templateId, error)
   }

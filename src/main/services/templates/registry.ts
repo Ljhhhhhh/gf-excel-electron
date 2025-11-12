@@ -10,13 +10,13 @@ import { templateExists } from '../utils/filePaths'
 /**
  * 全局模板注册表
  */
-const templateRegistry = new Map<TemplateId, TemplateDefinition>()
+const templateRegistry = new Map<TemplateId, TemplateDefinition<any>>()
 
 /**
  * 注册模板
  * @param definition 模板完整定义
  */
-export function registerTemplate(definition: TemplateDefinition): void {
+export function registerTemplate<TInput = unknown>(definition: TemplateDefinition<TInput>): void {
   const { id } = definition.meta
   if (templateRegistry.has(id)) {
     console.warn(`[Registry] 模板 ${id} 已存在，将被覆盖`)
@@ -30,7 +30,7 @@ export function registerTemplate(definition: TemplateDefinition): void {
  * @param id 模板 ID
  * @throws TemplateNotFoundError 模板不存在时抛出
  */
-export function getTemplate(id: TemplateId): TemplateDefinition {
+export function getTemplate<TInput = unknown>(id: TemplateId): TemplateDefinition<TInput> {
   const definition = templateRegistry.get(id)
   if (!definition) {
     throw new TemplateNotFoundError(id)
