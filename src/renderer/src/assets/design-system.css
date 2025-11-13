@@ -12,61 +12,61 @@
   --color-primary-lightest: #a5b4fc;
   --color-primary-dark: #4338ca;
   --color-primary-darker: #3730a3;
-  
+
   /* 背景色 */
   --color-bg-primary: #ffffff;
   --color-bg-secondary: #fafbfc;
   --color-bg-tertiary: #f8fafc;
   --color-bg-muted: #f3f4f6;
-  
+
   /* 渐变背景 */
   --gradient-primary: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
   --gradient-primary-hover: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%);
   --gradient-bg-light: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
   --gradient-bg-card: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
-  
+
   /* 文字颜色 */
   --color-text-primary: #111827;
   --color-text-secondary: #374151;
   --color-text-tertiary: #6b7280;
   --color-text-muted: #9ca3af;
   --color-text-disabled: #d1d5db;
-  
+
   /* 边框颜色 */
   --color-border-light: #f3f4f6;
   --color-border: #e5e7eb;
   --color-border-medium: #d1d5db;
   --color-border-dark: #9ca3af;
-  
+
   /* 功能色 */
   --color-success: #10b981;
   --color-success-light: #34d399;
   --color-success-bg: #d1fae5;
-  
+
   --color-warning: #f59e0b;
   --color-warning-light: #fbbf24;
   --color-warning-bg: #fef3c7;
-  
+
   --color-error: #ef4444;
   --color-error-light: #f87171;
   --color-error-bg: #fee2e2;
-  
+
   --color-info: #3b82f6;
   --color-info-light: #60a5fa;
   --color-info-bg: #dbeafe;
-  
+
   /* 阴影系统 */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 6px 24px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 6px 24px rgba(0, 0, 0, 0.1);
   --shadow-xl: 0 10px 32px rgba(0, 0, 0, 0.12);
-  
+
   /* 主色阴影 */
   --shadow-primary: 0 4px 12px rgba(79, 70, 229, 0.25);
   --shadow-primary-hover: 0 8px 20px rgba(79, 70, 229, 0.35);
-  --shadow-primary-active: 0 2px 8px rgba(79, 70, 229, 0.20);
-  
+  --shadow-primary-active: 0 2px 8px rgba(79, 70, 229, 0.2);
+
   /* 圆角系统 */
   --radius-xs: 4px;
   --radius-sm: 6px;
@@ -74,7 +74,7 @@
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-full: 9999px;
-  
+
   /* 间距系统 */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -83,11 +83,13 @@
   --spacing-xl: 24px;
   --spacing-2xl: 32px;
   --spacing-3xl: 48px;
-  
+
   /* 字体系统 */
-  --font-family-base: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-base:
+    'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    sans-serif;
   --font-family-mono: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
-  
+
   --font-size-xs: 11px;
   --font-size-sm: 12px;
   --font-size-base: 14px;
@@ -96,18 +98,18 @@
   --font-size-xl: 18px;
   --font-size-2xl: 20px;
   --font-size-3xl: 24px;
-  
+
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
-  
+
   /* 动效时长 */
   --duration-fast: 150ms;
   --duration-base: 200ms;
   --duration-slow: 300ms;
   --duration-slower: 400ms;
-  
+
   /* 缓动函数 */
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
@@ -165,7 +167,8 @@
 
 /* 脉冲 */
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -187,7 +190,8 @@
 
 /* 呼吸效果 */
 @keyframes breathe {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -197,7 +201,8 @@
 
 /* 闪烁 */
 @keyframes blink {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -238,9 +243,10 @@
 }
 
 .transition-colors {
-  transition: color var(--duration-base) var(--ease-in-out),
-              background-color var(--duration-base) var(--ease-in-out),
-              border-color var(--duration-base) var(--ease-in-out);
+  transition:
+    color var(--duration-base) var(--ease-in-out),
+    background-color var(--duration-base) var(--ease-in-out),
+    border-color var(--duration-base) var(--ease-in-out);
 }
 
 .transition-transform {
@@ -286,11 +292,11 @@
   --el-color-warning: var(--color-warning);
   --el-color-danger: var(--color-error);
   --el-color-info: var(--color-info);
-  
+
   --el-border-radius-base: var(--radius-md);
   --el-border-radius-small: var(--radius-sm);
   --el-border-radius-round: var(--radius-full);
-  
+
   --el-transition-duration: var(--duration-base);
   --el-transition-duration-fast: var(--duration-fast);
 }
@@ -407,7 +413,8 @@ body {
 }
 
 /* 代码字体 */
-code, pre {
+code,
+pre {
   font-family: var(--font-family-mono);
 }
 
@@ -443,14 +450,17 @@ a:hover {
 }
 
 /* 表单元素通用样式 */
-input, textarea, select {
+input,
+textarea,
+select {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
 }
 
 /* 禁用状态统一样式 */
-[disabled], .disabled {
+[disabled],
+.disabled {
   cursor: not-allowed;
   opacity: 0.6;
   pointer-events: none;

@@ -3,6 +3,7 @@
 ## 问题
 
 通过 Carbone 生成的 Excel 报表无法被 ExcelJS 读取，报错：
+
 ```
 Error: Invalid row number in model
 ```
@@ -32,22 +33,24 @@ ExcelJS 读取并后处理
 ### 1. `src/main/services/dataToReport.ts`
 
 **变更内容：**
+
 - 导入 `xlsx-js-style` 库
 - 移除未使用的 ExcelJS 导入
 - 在 postProcess 之前添加文件规范化步骤
 
 **关键代码：**
+
 ```typescript
 import * as XLSX from 'xlsx-js-style'
 
 // 如果有 postProcess 钩子，先用 xlsx-js-style 规范化 Carbone 生成的文件
 if (template.postProcess) {
   const tempPath = `${outputPath}.temp.xlsx`
-  
+
   // 读取并重写（规范化）
   const workbook = XLSX.readFile(outputPath)
   XLSX.writeFile(workbook, tempPath)
-  
+
   // 替换原文件
   deleteFileIfExists(outputPath)
   fs.renameSync(tempPath, outputPath)
@@ -63,6 +66,7 @@ pnpm exec tsx scripts/test-carbone-exceljs-fix.ts
 ```
 
 **测试流程：**
+
 1. ✅ 解析源数据文件
 2. ✅ 使用 Carbone 生成报表
 3. ✅ 自动使用 xlsx-js-style 规范化
@@ -70,6 +74,7 @@ pnpm exec tsx scripts/test-carbone-exceljs-fix.ts
 5. ✅ 验证文件可以正常读取
 
 **测试结果：**
+
 ```
 ✅ 测试通过！Carbone 文件已成功规范化，ExcelJS 可以正常读取
 工作表名称: Sheet1

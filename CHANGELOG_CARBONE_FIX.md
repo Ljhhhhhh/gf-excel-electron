@@ -1,11 +1,13 @@
 # Carbone + ExcelJS 兼容性修复 - 变更日志
 
 ## 修复日期
+
 2025-11-12
 
 ## 问题描述
 
 通过 Carbone 生成的 Excel 报表无法被 ExcelJS 直接读取，报错：
+
 ```
 Error: Invalid row number in model
 ```
@@ -35,6 +37,7 @@ Carbone 生成 → xlsx-js-style 规范化 → ExcelJS 后处理
 #### 变更类型：功能增强
 
 #### 主要变更：
+
 - ✅ 添加 `xlsx-js-style` 导入
 - ✅ 移除未使用的 ExcelJS 导入
 - ✅ 在第 104-129 行添加文件规范化逻辑
@@ -50,18 +53,18 @@ if (template.postProcess) {
   console.log(`[dataToReport] 检测到 postProcess 钩子，先规范化文件格式...`)
   try {
     const tempPath = `${outputPath}.temp.xlsx`
-    
+
     // 使用 xlsx-js-style 读取 Carbone 生成的文件（对格式更宽容）
     const workbook = XLSX.readFile(outputPath)
     console.log(`[dataToReport] 使用 xlsx-js-style 读取 Carbone 文件成功`)
-    
+
     // 重新写入文件（这会规范化文件结构，使 ExcelJS 能读取）
     XLSX.writeFile(workbook, tempPath)
     console.log(`[dataToReport] 已规范化并保存到临时文件`)
-    
+
     // 删除原 Carbone 文件
     deleteFileIfExists(outputPath)
-    
+
     // 将临时文件重命名为原文件名
     fs.renameSync(tempPath, outputPath)
     console.log(`[dataToReport] 文件格式规范化完成，现在 ExcelJS 可以读取了`)
@@ -77,9 +80,11 @@ if (template.postProcess) {
 #### 变更类型：新增测试
 
 #### 功能：
+
 完整的端到端测试，验证修复方案的有效性
 
 #### 测试覆盖：
+
 - ✅ 模板系统初始化
 - ✅ 源数据解析
 - ✅ Carbone 报表生成
@@ -92,6 +97,7 @@ if (template.postProcess) {
 #### 变更类型：新增文档
 
 #### 内容：
+
 - 问题原因详细分析
 - 解决方案技术细节
 - 实现代码示例
@@ -103,6 +109,7 @@ if (template.postProcess) {
 #### 变更类型：新增文档
 
 #### 内容：
+
 - 修复总结
 - 测试验证结果
 - 依赖清单
@@ -110,11 +117,13 @@ if (template.postProcess) {
 ## 测试结果
 
 ### 测试命令
+
 ```bash
 pnpm exec tsx scripts/test-carbone-exceljs-fix.ts
 ```
 
 ### 测试输出
+
 ```
 ✅ 测试通过！Carbone 文件已成功规范化，ExcelJS 可以正常读取
 
@@ -127,6 +136,7 @@ pnpm exec tsx scripts/test-carbone-exceljs-fix.ts
 ```
 
 ### 测试覆盖场景
+
 - ✅ Carbone 生成 xlsx 文件
 - ✅ xlsx-js-style 规范化处理
 - ✅ ExcelJS 读取规范化后的文件
@@ -143,9 +153,11 @@ pnpm exec tsx scripts/test-carbone-exceljs-fix.ts
 ## 依赖变更
 
 ### 无需新增依赖
+
 项目已有 `xlsx-js-style: ^1.2.0`，无需额外安装。
 
 ### 相关依赖版本
+
 ```json
 {
   "xlsx-js-style": "^1.2.0",
@@ -157,6 +169,7 @@ pnpm exec tsx scripts/test-carbone-exceljs-fix.ts
 ## 向后兼容性
 
 ✅ **完全兼容**
+
 - 不影响现有模板的使用
 - 不影响没有 postProcess 钩子的模板
 - 对用户透明，自动处理

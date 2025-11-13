@@ -6,13 +6,16 @@ import { trpc } from '../utils/trpc'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
-const { templates, loadingTemplates, currentTemplateId, selectTemplate, loadTemplates } = useTemplates()
+const { templates, loadingTemplates, currentTemplateId, selectTemplate, loadTemplates } =
+  useTemplates()
 const keyword = ref('')
 
 const filtered = computed(() => {
   const k = keyword.value.trim().toLowerCase()
   if (!k) return templates.value
-  return templates.value.filter((t: any) => `${t.name} ${t.filename} ${t.id}`.toLowerCase().includes(k))
+  return templates.value.filter((t: any) =>
+    `${t.name} ${t.filename} ${t.id}`.toLowerCase().includes(k)
+  )
 })
 
 async function validateTemplate(id: string) {
@@ -47,14 +50,21 @@ onMounted(() => {
     <div class="header">
       <el-input v-model="keyword" placeholder="搜索模板" clearable class="search" />
       <div class="header-actions">
-        <el-button :loading="loadingTemplates" type="primary" @click="loadTemplates">刷新列表</el-button>
+        <el-button :loading="loadingTemplates" type="primary" @click="loadTemplates"
+          >刷新列表</el-button
+        >
         <el-button :disabled="!currentTemplateId" @click="goReport">前往生成</el-button>
       </div>
     </div>
-    <el-empty v-if="!loadingTemplates && filtered.length===0" description="暂无模板" />
+    <el-empty v-if="!loadingTemplates && filtered.length === 0" description="暂无模板" />
     <el-row v-else :gutter="16" class="grid">
       <el-col v-for="t in filtered" :key="t.id" :xs="24" :sm="12" :md="8" :lg="6">
-        <el-card class="card" :class="{ active: currentTemplateId===t.id }" shadow="hover" @click="choose(t)">
+        <el-card
+          class="card"
+          :class="{ active: currentTemplateId === t.id }"
+          shadow="hover"
+          @click="choose(t)"
+        >
           <div class="title">{{ t.name }}</div>
           <div class="meta">ID：{{ t.id }}</div>
           <div class="meta">文件：{{ t.filename }}</div>
@@ -69,14 +79,42 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.templates-view { padding: 8px; }
-.header { display:flex; align-items:center; justify-content: space-between; gap:12px; }
-.header-actions { display:flex; gap:8px; }
-.search { max-width: 360px; }
-.grid { margin-top: 12px; }
-.card { border: 1px solid rgba(255,255,255,0.08); }
-.title { font-weight:600; }
-.meta { color:#909399; font-size:12px; margin-top:4px; }
-.card-actions { margin-top:8px; display:flex; gap:8px; }
-.active { border-color: #409eff; }
+.templates-view {
+  padding: 8px;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+.search {
+  max-width: 360px;
+}
+.grid {
+  margin-top: 12px;
+}
+.card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.title {
+  font-weight: 600;
+}
+.meta {
+  color: #909399;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.card-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+.active {
+  border-color: #409eff;
+}
 </style>
