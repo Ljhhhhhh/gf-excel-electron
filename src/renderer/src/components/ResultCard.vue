@@ -80,7 +80,7 @@ async function openFolder() {
           </div>
           <div class="detail-content">
             <span class="detail-label">用时</span>
-            <span class="detail-value">{{ result.duration }}ms</span>
+            <span class="detail-value">{{ result.duration }}s</span>
           </div>
         </div>
       </div>

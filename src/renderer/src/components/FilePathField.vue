@@ -107,24 +107,10 @@ function clear() {
         </div>
       </div>
       <div class="file-actions">
-        <el-button
-          :disabled="disabled"
-          type="primary"
-          plain
-          size="small"
-          :icon="fileIcon"
-          @click="select"
-        >
+        <el-button :disabled="disabled" type="primary" plain :icon="fileIcon" @click="select">
           重新选择
         </el-button>
-        <el-button
-          :disabled="disabled"
-          type="danger"
-          plain
-          size="small"
-          :icon="CircleClose"
-          @click="clear"
-        >
+        <el-button :disabled="disabled" type="danger" plain :icon="CircleClose" @click="clear">
           清除
         </el-button>
       </div>
@@ -337,10 +323,14 @@ function clear() {
 }
 
 .file-actions .el-button {
-  padding: 0 12px;
+  padding: 6px 12px;
   font-weight: 500;
   border-radius: 6px;
   transition: all 0.3s;
+}
+
+.file-actions .el-button.el-button--primary {
+  color: #fff;
 }
 
 .file-actions .el-button:hover {

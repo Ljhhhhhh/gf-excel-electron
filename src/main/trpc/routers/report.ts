@@ -69,9 +69,9 @@ export const reportRouter = router({
         userInput: input.userInput
       })
 
-      const duration = Date.now() - startTime
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2)
       console.log(
-        `[Report Router] 报表生成成功，耗时: ${duration}ms，输出: ${reportResult.outputPath}`
+        `[Report Router] 报表生成成功，耗时: ${duration}s，输出: ${reportResult.outputPath}`
       )
 
       // 返回成功结果

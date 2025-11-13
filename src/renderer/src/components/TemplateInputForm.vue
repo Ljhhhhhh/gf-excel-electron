@@ -118,14 +118,14 @@ defineExpose({
       />
 
       <!-- 参数说明（可选） -->
-      <el-alert
+      <!-- <el-alert
         v-if="ruleData.inputRule.description"
         type="info"
         :closable="false"
         style="margin-top: 16px"
       >
         <div class="description-content" v-html="ruleData.inputRule.description" />
-      </el-alert>
+      </el-alert> -->
     </div>
   </div>
 </template>
