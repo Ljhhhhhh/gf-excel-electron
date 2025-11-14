@@ -130,7 +130,10 @@ export interface SourceMeta {
  * @param parseOptions 模板自定义的解析选项
  * @returns 解析后的结构化数据
  */
-export type TemplateParser = (workbook: Workbook, parseOptions?: ParseOptions) => ParsedData
+export type TemplateParser = (
+  workbook: Workbook,
+  parseOptions?: ParseOptions
+) => ParsedData | Promise<ParsedData>
 
 /**
  * 报表数据构建器函数签名

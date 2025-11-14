@@ -76,7 +76,7 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
   // 7. 调用模板解析器
   let parsedData
   try {
-    parsedData = template.parser(workbook, parseOptions as ParseOptions)
+    parsedData = await template.parser(workbook, parseOptions as ParseOptions)
     console.log(`[excelToData] 解析完成`)
   } catch (error) {
     throw new ExcelParseError(sourcePath, error)
