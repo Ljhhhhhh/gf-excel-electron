@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useTemplates } from '../composables/useTemplates'
 import { useReport } from '../composables/useReport'
 import TemplateInputForm from '../components/TemplateInputForm.vue'
@@ -7,7 +7,7 @@ import FilePathField from '../components/FilePathField.vue'
 import ResultCard from '../components/ResultCard.vue'
 import { ElMessage } from 'element-plus'
 
-const { currentTemplateId, currentTemplateName } = useTemplates()
+const { currentTemplateId, currentTemplateName, currentTemplateMeta } = useTemplates()
 const {
   sourcePath,
   outputDir,
@@ -17,12 +17,27 @@ const {
   setSourcePath,
   setOutputDir,
   setUserInput,
+  extraSources,
+  setExtraSource,
+  resetExtraSources,
   generate
 } = useReport()
 
 const active = ref(0)
+// 复用模板元数据，动态提示用户补全附属数据源
+const extraSourceRequirements = computed(() => currentTemplateMeta.value?.extraSources ?? [])
+const primarySourceLabel = computed(() => currentTemplateMeta.value?.sourceLabel || '源文件')
+// 必填的额外文件均就绪后才能进入下一步
+const requiredExtraReady = computed(() => {
+  if (!extraSourceRequirements.value.length) return true
+  return extraSourceRequirements.value.every((req) => {
+    if (req.required === false) return true
+    return !!extraSources.value[req.id]
+  })
+})
 const canGenerate = computed(
-  () => !!(currentTemplateId.value && sourcePath.value && outputDir.value)
+  () =>
+    !!(currentTemplateId.value && sourcePath.value && outputDir.value && requiredExtraReady.value)
 )
 const templateFormRef = ref<InstanceType<typeof TemplateInputForm>>()
 
@@ -33,6 +48,13 @@ function onParamsChange(data: Record<string, any>) {
 function onParamsReady(data: Record<string, any>) {
   setUserInput(data)
 }
+
+watch(
+  () => currentTemplateId.value,
+  () => {
+    resetExtraSources()
+  }
+)
 
 async function submit() {
   if (!canGenerate.value) {
@@ -71,16 +93,35 @@ async function submit() {
         <el-form label-width="100px">
           <div v-show="active === 0">
             <FilePathField
-              label="源文件"
+              :label="primarySourceLabel"
               :model-value="sourcePath"
               type="file"
               :disabled="generating"
+              :required="true"
               @update:model-value="setSourcePath"
             />
+            <p v-if="currentTemplateMeta?.sourceDescription" class="field-hint">
+              {{ currentTemplateMeta.sourceDescription }}
+            </p>
+            <div v-for="extra in extraSourceRequirements" :key="extra.id" class="extra-source">
+              <FilePathField
+                :label="extra.label"
+                :model-value="extraSources[extra.id] || null"
+                type="file"
+                :disabled="generating"
+                :required="extra.required !== false"
+                @update:model-value="(val) => setExtraSource(extra.id, val)"
+              />
+              <p v-if="extra.description" class="field-hint">{{ extra.description }}</p>
+            </div>
             <div class="form-actions">
-              <el-button type="primary" :disabled="!sourcePath" @click="active = 1"
-                >下一步</el-button
+              <el-button
+                type="primary"
+                :disabled="!sourcePath || !requiredExtraReady"
+                @click="active = 1"
               >
+                下一步
+              </el-button>
             </div>
           </div>
           <div v-show="active === 1">
@@ -153,5 +194,11 @@ async function submit() {
   margin-top: 12px;
   display: flex;
   gap: 8px;
+}
+
+.field-hint {
+  margin: 4px 0 12px 2px;
+  font-size: 13px;
+  color: #6b7280;
 }
 </style>

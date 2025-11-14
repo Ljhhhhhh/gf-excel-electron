@@ -83,6 +83,19 @@ export type TemplateId = string
 /**
  * 模板元信息
  */
+export interface TemplateSourceRequirement {
+  /** 额外数据源 ID（唯一） */
+  id: string
+  /** UI 显示标签 */
+  label: string
+  /** 是否必填，默认 true */
+  required?: boolean
+  /** 额外提示 */
+  description?: string
+  /** 支持的扩展名（默认与主数据源一致） */
+  supportedExts?: string[]
+}
+
 export interface TemplateMeta {
   /** 模板唯一 ID */
   id: TemplateId
@@ -96,6 +109,12 @@ export interface TemplateMeta {
   supportedSourceExts: string[]
   /** 描述 */
   description?: string
+  /** 主数据源字段标签（用于 UI） */
+  sourceLabel?: string
+  /** 主数据源提示信息 */
+  sourceDescription?: string
+  /** 额外所需的数据源 */
+  extraSources?: TemplateSourceRequirement[]
 }
 
 // ========== 模板解析与构建 ==========
@@ -103,7 +122,23 @@ export interface TemplateMeta {
 /**
  * 模板解析选项（由每个模板自定义）
  */
-export type ParseOptions = Record<string, unknown>
+export interface ExtraSourceContext {
+  /** 文件路径 */
+  path: string
+  /** ExcelJS Workbook 实例 */
+  workbook: Workbook
+  /** 文件大小（字节） */
+  size: number
+  /** 工作表名称列表 */
+  sheets: string[]
+}
+
+export interface ParseOptions {
+  /** 额外数据源（当模板声明 extraSources 时注入） */
+  extraSources?: Record<string, ExtraSourceContext>
+  /** 其他模板自定义选项 */
+  [key: string]: unknown
+}
 
 /**
  * 解析后的数据（由每个模板自定义结构）
@@ -248,6 +283,8 @@ export interface ExcelToDataInput {
   templateId: TemplateId
   /** 模板解析选项 */
   parseOptions?: ParseOptions
+  /** 额外数据源（key -> 文件路径） */
+  extraSources?: Record<string, string>
 }
 
 /**

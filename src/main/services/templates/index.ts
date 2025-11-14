@@ -9,6 +9,7 @@ import { month2exceljsTemplate } from './month2exceljs'
 import { month4excelTemplate } from './month4excel'
 import { basicTemplate } from './basic'
 import { top10CustomersTemplate } from './top10customers'
+import { bankCommonTemplate } from './bankCommon'
 
 /**
  * 初始化模板系统
@@ -23,6 +24,7 @@ export function initTemplates(): void {
   registerTemplate(month4excelTemplate)
   registerTemplate(top10CustomersTemplate)
   registerTemplate(basicTemplate)
+  registerTemplate(bankCommonTemplate)
 
   console.log('[Templates] 模板系统初始化完成')
 }

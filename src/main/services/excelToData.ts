@@ -9,11 +9,17 @@ import type {
   ExcelToDataInput,
   ExcelToDataResult,
   ParseOptions,
-  SourceMeta
+  SourceMeta,
+  ExtraSourceContext
 } from './templates/types'
 import type { Warning } from './errors'
 import { getTemplate } from './templates/registry'
-import { UnsupportedFileError, ExcelFileTooLargeError, ExcelParseError } from './errors'
+import {
+  UnsupportedFileError,
+  ExcelFileTooLargeError,
+  ExcelParseError,
+  MissingSourceError
+} from './errors'
 import { getFileSize, getFileExtension } from './utils/fileOps'
 
 /**
@@ -27,7 +33,7 @@ const FILE_SIZE_LIMIT_MB = 100
  * @returns 解析结果
  */
 export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataResult> {
-  const { sourcePath, templateId, parseOptions } = input
+  const { sourcePath, templateId, parseOptions, extraSources } = input
   const warnings: Warning[] = []
 
   console.log(`[excelToData] 开始处理: ${sourcePath} with template: ${templateId}`)
@@ -56,7 +62,55 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
     throw new ExcelFileTooLargeError(sourcePath, fileSize, FILE_SIZE_LIMIT_MB)
   }
 
-  // 5. 检查模板是否支持流式解析
+  // 5. 处理额外数据源
+  // 如果模板声明了额外数据源，这里逐个解析与校验，并将 workbook 句柄注入 parseOptions
+  const extraSourceConfigs = template.meta.extraSources ?? []
+  const resolvedExtraSources: Record<string, ExtraSourceContext> = {}
+  for (const requirement of extraSourceConfigs) {
+    const providedPath = extraSources?.[requirement.id]
+    const isRequired = requirement.required !== false
+    if (!providedPath) {
+      if (isRequired) {
+        throw new MissingSourceError(requirement.id, requirement.label)
+      }
+      continue
+    }
+
+    if (!fs.existsSync(providedPath)) {
+      throw new UnsupportedFileError(providedPath, '文件不存在')
+    }
+
+    const ext = getFileExtension(providedPath)
+    const allowedExts = requirement.supportedExts ?? template.meta.supportedSourceExts
+    if (!allowedExts.includes(ext)) {
+      throw new UnsupportedFileError(
+        providedPath,
+        `不支持的扩展名: ${ext}，仅支持: ${allowedExts.join(', ')}`
+      )
+    }
+
+    const size = getFileSize(providedPath)
+    if (size > FILE_SIZE_LIMIT_MB * 1024 * 1024) {
+      throw new ExcelFileTooLargeError(providedPath, size, FILE_SIZE_LIMIT_MB)
+    }
+
+    const workbook = new ExcelJS.Workbook()
+    try {
+      await workbook.xlsx.readFile(providedPath)
+      console.log(`[excelToData] 额外数据源已加载: ${requirement.label || requirement.id}`)
+    } catch (error) {
+      throw new ExcelParseError(providedPath, error)
+    }
+
+    resolvedExtraSources[requirement.id] = {
+      path: providedPath,
+      workbook,
+      size,
+      sheets: workbook.worksheets.map((ws) => ws.name)
+    }
+  }
+
+  // 6. 检查模板是否支持流式解析
   const supportsStreaming =
     'streamParser' in template && typeof template.streamParser === 'function'
 
@@ -64,11 +118,16 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
   let parsedData: unknown
   let sourceMeta: SourceMeta
 
+  const parserOptions: ParseOptions = {
+    ...((parseOptions as ParseOptions) || {}),
+    extraSources: Object.keys(resolvedExtraSources).length ? resolvedExtraSources : undefined
+  }
+
   if (supportsStreaming) {
     // 使用流式解析(避免全量加载)
     console.log(`[excelToData] 使用流式解析模式`)
     try {
-      parsedData = await template.streamParser!(sourcePath, parseOptions as ParseOptions)
+      parsedData = await template.streamParser!(sourcePath, parserOptions)
       console.log(`[excelToData] 流式解析完成`)
     } catch (error) {
       throw new ExcelParseError(sourcePath, error)
@@ -100,7 +159,7 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
 
     // 7. 调用模板解析器
     try {
-      parsedData = await template.parser(workbook, parseOptions as ParseOptions)
+      parsedData = await template.parser(workbook, parserOptions)
       console.log(`[excelToData] 解析完成`)
     } catch (error) {
       throw new ExcelParseError(sourcePath, error)

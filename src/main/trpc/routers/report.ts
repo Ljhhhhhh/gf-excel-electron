@@ -15,7 +15,8 @@ import {
   ExcelParseError,
   ReportRenderError,
   OutputDirNotSelectedError,
-  OutputWriteError
+  OutputWriteError,
+  MissingSourceError
 } from '../../services/errors'
 
 /**
@@ -32,6 +33,8 @@ const generateInputSchema = z.object({
   reportName: z.string().optional(),
   /** 模板解析选项（可选） */
   parseOptions: z.record(z.string(), z.unknown()).optional(),
+  /** 模板额外数据源（可选，key -> 文件路径） */
+  extraSources: z.record(z.string(), z.string()).optional(),
   /** Carbone 渲染选项（可选） */
   renderOptions: z.record(z.string(), z.unknown()).optional(),
   /** 用户输入参数（可选，如年月等模板特定参数） */
@@ -54,7 +57,8 @@ export const reportRouter = router({
       const parseResult = await excelToData({
         sourcePath: input.sourcePath,
         templateId: input.templateId,
-        parseOptions: input.parseOptions
+        parseOptions: input.parseOptions,
+        extraSources: input.extraSources
       })
 
       console.log(`[Report Router] 数据解析完成，警告数量: ${parseResult.warnings.length}`)
@@ -112,6 +116,14 @@ export const reportRouter = router({
       }
 
       if (error instanceof ExcelParseError) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: error.message,
+          cause: error
+        })
+      }
+
+      if (error instanceof MissingSourceError) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: error.message,

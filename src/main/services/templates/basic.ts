@@ -49,7 +49,7 @@ export function parseWorkbook(
   workbook: Workbook,
   parseOptions?: Month1ParseOptions
 ): Month1ParsedData {
-  const options: Required<Month1ParseOptions> = {
+  const options = {
     sheets: parseOptions?.sheets ?? [0],
     headerRow: parseOptions?.headerRow ?? 4,
     dataStartRow: parseOptions?.dataStartRow ?? 5,

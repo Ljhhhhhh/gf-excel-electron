@@ -5,6 +5,11 @@ const templates = ref<any[]>([])
 const loadingTemplates = ref(false)
 const currentTemplateId = ref<string | null>(null)
 const currentTemplateName = ref<string>('')
+// 在前端直接拿到当前模板元数据（名称、额外数据源配置等）
+const currentTemplateMeta = computed(() => {
+  if (!currentTemplateId.value) return null
+  return templates.value.find((x) => (x.id || x.meta?.id) === currentTemplateId.value) || null
+})
 
 const hasTemplates = computed(() => templates.value.length > 0)
 
@@ -30,6 +35,7 @@ export function useTemplates() {
     hasTemplates,
     currentTemplateId,
     currentTemplateName,
+    currentTemplateMeta,
     loadTemplates,
     selectTemplate
   }

@@ -62,6 +62,15 @@ export class ExcelParseError extends AppError {
   }
 }
 
+export class MissingSourceError extends AppError {
+  constructor(sourceId: string, label?: string) {
+    super('EXTRA_SOURCE_MISSING', `缺少必需的数据源: ${label || sourceId}`, {
+      sourceId,
+      label
+    })
+  }
+}
+
 // ========== 报表渲染相关错误 ==========
 
 export class ReportRenderError extends AppError {

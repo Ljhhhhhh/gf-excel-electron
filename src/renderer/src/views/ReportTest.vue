@@ -37,6 +37,20 @@
           <input type="text" :value="sourcePath || '未选择'" disabled />
           <button :disabled="generating" @click="selectSourceFile">选择文件</button>
         </div>
+        <div v-for="extra in extraSourceRequirements" :key="extra.id" class="extra-source">
+          <div class="form-item">
+            <label>{{ extra.label }}:</label>
+            <input type="text" :value="extraSources[extra.id] || '未选择'" disabled />
+            <button :disabled="generating" @click="selectExtraSource(extra.id)">选择文件</button>
+            <button
+              :disabled="generating || !extraSources[extra.id]"
+              @click="clearExtraSource(extra.id)"
+            >
+              清除
+            </button>
+          </div>
+          <p v-if="extra.description" class="extra-hint">{{ extra.description }}</p>
+        </div>
         <div class="form-item">
           <label>输出目录:</label>
           <input type="text" :value="outputDir || '未选择'" disabled />
@@ -105,10 +119,27 @@ const loading = ref({
   templates: false
 })
 const generating = ref(false)
+const extraSources = ref<Record<string, string | null>>({})
 
 // 计算属性
+// dev 环境测试页同样支持 extraSources，保持行为一致
+const selectedTemplate = computed(
+  () => templates.value.find((t) => t.id === selectedTemplateId.value) || null
+)
+const extraSourceRequirements = computed(() => selectedTemplate.value?.extraSources ?? [])
+const requiredExtraReady = computed(() =>
+  extraSourceRequirements.value.every((req) => {
+    if (req.required === false) return true
+    return !!extraSources.value[req.id]
+  })
+)
 const canGenerate = computed(() => {
-  return !!(selectedTemplateId.value && sourcePath.value && outputDir.value)
+  return !!(
+    selectedTemplateId.value &&
+    sourcePath.value &&
+    outputDir.value &&
+    requiredExtraReady.value
+  )
 })
 
 // 处理模板参数变化
@@ -141,6 +172,7 @@ async function loadTemplates() {
 function selectTemplate(id: string) {
   selectedTemplateId.value = id
   result.value = null
+  extraSources.value = {}
 }
 
 // 选择源文件
@@ -169,6 +201,28 @@ async function selectOutputDir() {
   }
 }
 
+async function selectExtraSource(id: string) {
+  try {
+    const res = await trpc.file.selectSourceFile.query()
+    if (!res.canceled && res.filePath) {
+      extraSources.value = {
+        ...extraSources.value,
+        [id]: res.filePath
+      }
+    }
+  } catch (error) {
+    console.error('[ReportTest] 选择额外源文件失败:', error)
+    alert('选择额外源文件失败: ' + (error as any).message)
+  }
+}
+
+function clearExtraSource(id: string) {
+  extraSources.value = {
+    ...extraSources.value,
+    [id]: null
+  }
+}
+
 // 生成报表
 async function generateReport() {
   if (!canGenerate.value) return
@@ -186,12 +240,19 @@ async function generateReport() {
   result.value = null
 
   try {
+    const extraPayload: Record<string, string> = {}
+    Object.entries(extraSources.value).forEach(([key, value]) => {
+      if (value) {
+        extraPayload[key] = value
+      }
+    })
     const res = await trpc.report.generate.mutate({
       templateId: selectedTemplateId.value!,
       sourcePath: sourcePath.value!,
       outputDir: outputDir.value!,
       reportName: reportName.value || undefined,
-      userInput: Object.keys(userInput.value).length > 0 ? userInput.value : undefined
+      userInput: Object.keys(userInput.value).length > 0 ? userInput.value : undefined,
+      extraSources: Object.keys(extraPayload).length ? extraPayload : undefined
     })
 
     console.log('[ReportTest] 生成结果:', res)
@@ -362,6 +423,12 @@ button.primary:hover:not(:disabled) {
 .form-item.template-params label {
   width: auto;
   margin-bottom: 10px;
+}
+
+.extra-hint {
+  margin: -8px 0 12px 100px;
+  font-size: 12px;
+  color: #888;
 }
 
 .params-container {
