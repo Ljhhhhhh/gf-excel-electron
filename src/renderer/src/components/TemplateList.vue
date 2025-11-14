@@ -24,13 +24,6 @@ function choose(t: any) {
     selectTemplate(id)
   }
 }
-
-// 模拟"最近使用"判断（实际项目中应从 localStorage 或后端获取）
-function isRecentlyUsed(templateId: string) {
-  // TODO: 实现最近使用逻辑
-  return false
-}
-
 onMounted(() => {
   loadTemplates()
 })

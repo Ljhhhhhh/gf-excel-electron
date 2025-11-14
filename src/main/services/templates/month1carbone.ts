@@ -254,7 +254,7 @@ export function buildReportData(parsedData: ParsedData, userInput?: unknown): un
 export const month1carboneTemplate: TemplateDefinition<Month1CarboneInput> = {
   meta: {
     id: 'month1carbone',
-    name: '月度报表模板',
+    name: '月报1模板',
     filename: 'month1carbone.xlsx',
     ext: 'xlsx',
     supportedSourceExts: ['xlsx', 'xls'],

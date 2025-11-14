@@ -56,30 +56,55 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
     throw new ExcelFileTooLargeError(sourcePath, fileSize, FILE_SIZE_LIMIT_MB)
   }
 
-  // 5. 使用 ExcelJS 读取 workbook
+  // 5. 检查模板是否支持流式解析
+  const supportsStreaming =
+    'streamParser' in template && typeof template.streamParser === 'function'
+
   let workbook: ExcelJS.Workbook
-  try {
-    workbook = new ExcelJS.Workbook()
-    await workbook.xlsx.readFile(sourcePath)
-    console.log(`[excelToData] Workbook 已加载，共 ${workbook.worksheets.length} 个 sheet`)
-  } catch (error) {
-    throw new ExcelParseError(sourcePath, error)
-  }
+  let parsedData: unknown
+  let sourceMeta: SourceMeta
 
-  // 6. 提取源文件元信息
-  const sourceMeta: SourceMeta = {
-    path: sourcePath,
-    size: fileSize,
-    sheets: workbook.worksheets.map((ws) => ws.name)
-  }
+  if (supportsStreaming) {
+    // 使用流式解析(避免全量加载)
+    console.log(`[excelToData] 使用流式解析模式`)
+    try {
+      parsedData = await template.streamParser!(sourcePath, parseOptions as ParseOptions)
+      console.log(`[excelToData] 流式解析完成`)
+    } catch (error) {
+      throw new ExcelParseError(sourcePath, error)
+    }
 
-  // 7. 调用模板解析器
-  let parsedData
-  try {
-    parsedData = await template.parser(workbook, parseOptions as ParseOptions)
-    console.log(`[excelToData] 解析完成`)
-  } catch (error) {
-    throw new ExcelParseError(sourcePath, error)
+    // 流式模式下无法获取完整sheet列表,使用空数组
+    sourceMeta = {
+      path: sourcePath,
+      size: fileSize,
+      sheets: [] // 流式模式下不提供sheet列表
+    }
+  } else {
+    // 使用传统完整加载模式
+    console.log(`[excelToData] 使用完整加载模式`)
+    try {
+      workbook = new ExcelJS.Workbook()
+      await workbook.xlsx.readFile(sourcePath)
+      console.log(`[excelToData] Workbook 已加载,共 ${workbook.worksheets.length} 个 sheet`)
+    } catch (error) {
+      throw new ExcelParseError(sourcePath, error)
+    }
+
+    // 6. 提取源文件元信息
+    sourceMeta = {
+      path: sourcePath,
+      size: fileSize,
+      sheets: workbook.worksheets.map((ws) => ws.name)
+    }
+
+    // 7. 调用模板解析器
+    try {
+      parsedData = await template.parser(workbook, parseOptions as ParseOptions)
+      console.log(`[excelToData] 解析完成`)
+    } catch (error) {
+      throw new ExcelParseError(sourcePath, error)
+    }
   }
 
   // 8. 检查解析结果是否有效

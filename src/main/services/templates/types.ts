@@ -136,6 +136,14 @@ export type TemplateParser = (
 ) => ParsedData | Promise<ParsedData>
 
 /**
+ * 流式解析器函数签名(用于大文件优化)
+ * @param filePath 源文件路径
+ * @param parseOptions 模板自定义的解析选项
+ * @returns 解析后的结构化数据
+ */
+export type StreamParser = (filePath: string, parseOptions?: ParseOptions) => Promise<ParsedData>
+
+/**
  * 报表数据构建器函数签名
  * @param parsedData 解析后的数据
  * @param userInput 用户输入的额外参数（如查询年月、过滤条件等），可选
@@ -216,6 +224,8 @@ export interface TemplateDefinition<TInput = unknown> {
   inputRule?: TemplateInputRule
   /** 解析器函数 */
   parser: TemplateParser
+  /** 流式解析器（可选，用于大文件优化） */
+  streamParser?: StreamParser
   /** 报表数据构建器（类型安全的 userInput）- Carbone 模式使用 */
   builder?: (parsedData: ParsedData, userInput?: TInput) => unknown
   /** Carbone 默认选项（可被 renderOptions 覆写）- Carbone 模式使用 */

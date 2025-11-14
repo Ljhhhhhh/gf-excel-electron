@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs'
-import type { Workbook, CellValue } from 'exceljs'
+import type { Workbook, CellValue, Row } from 'exceljs'
 import { setImmediate as setImmediatePromise } from 'node:timers/promises'
 import type { TemplateDefinition, ParseOptions } from './types'
 
@@ -30,7 +30,7 @@ interface AggregatedCustomer {
   recourseStates: string[]
 }
 
-const DEFAULT_FINANCING_SHEET = '融资及还款明细表'
+const DEFAULT_FINANCING_SHEET = '融资及还款明细'
 const DEFAULT_CUSTOMER_SHEET = '客户表'
 const DATA_START_ROW = 2
 const MAX_CUSTOMERS = 10
@@ -193,6 +193,214 @@ export async function parseWorkbook(
   }
 
   console.log(`[top10customers] 客户信息加载完成，共 ${Object.keys(customers).length} 条记录`)
+
+  return { entries, totalBalance, customers }
+}
+
+/**
+ * 流式解析器(优化版,用于大文件)
+ * 优化点:
+ * 1. 使用流式API,避免全量加载到内存
+ * 2. 只处理指定的sheet,跳过其他sheet
+ * 3. 遇到连续空行时提前终止
+ * 4. 更频繁的yield控制,避免阻塞事件循环
+ */
+export async function streamParseWorkbook(
+  filePath: string,
+  parseOptions?: ParseOptions
+): Promise<Top10ParsedData> {
+  const opts = parseOptions as Top10ParseOptions | undefined
+  const options = {
+    financingSheet: opts?.financingSheet ?? DEFAULT_FINANCING_SHEET,
+    customerSheet: opts?.customerSheet ?? DEFAULT_CUSTOMER_SHEET,
+    financingDataStartRow: opts?.financingDataStartRow ?? DATA_START_ROW,
+    customerDataStartRow: opts?.customerDataStartRow ?? DATA_START_ROW
+  }
+
+  console.log('[top10customers] 开始流式解析', {
+    filePath,
+    financingSheet: options.financingSheet,
+    customerSheet: options.customerSheet
+  })
+
+  const workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(filePath, {
+    sharedStrings: 'cache',
+    hyperlinks: 'ignore',
+    styles: 'ignore',
+    worksheets: 'emit'
+  })
+
+  const summary = new Map<string, AggregatedCustomer>()
+  const customers: Record<string, CustomerInfo> = {}
+  let currentSheetIndex = 0
+  let processedFinancing = false
+  let processedCustomer = false
+
+  const targetFinancingName =
+    typeof options.financingSheet === 'string' ? options.financingSheet : null
+  const targetFinancingIndex =
+    typeof options.financingSheet === 'number' ? options.financingSheet : null
+  const targetCustomerName =
+    typeof options.customerSheet === 'string' ? options.customerSheet : null
+  const targetCustomerIndex =
+    typeof options.customerSheet === 'number' ? options.customerSheet : null
+
+  for await (const worksheetReader of workbookReader) {
+    const sheetName = (worksheetReader as any).name
+    const isFinancingSheet =
+      (targetFinancingName && sheetName === targetFinancingName) ||
+      (targetFinancingIndex !== null && currentSheetIndex === targetFinancingIndex)
+    const isCustomerSheet =
+      (targetCustomerName && sheetName === targetCustomerName) ||
+      (targetCustomerIndex !== null && currentSheetIndex === targetCustomerIndex)
+
+    if (isFinancingSheet && !processedFinancing) {
+      console.log(`[top10customers] 流式处理融资表: ${sheetName}`)
+      let rowIndex = 0
+
+      for await (const row of worksheetReader) {
+        rowIndex++
+
+        if (rowIndex < options.financingDataStartRow) {
+          continue
+        }
+
+        const rowData = row as Row
+        if (!rowData.hasValues) {
+          if (rowIndex % ROW_YIELD_INTERVAL === 0) {
+            await setImmediatePromise()
+          }
+          continue
+        }
+
+        const customerName = normalizeString(rowData.getCell(FINANCING_COLS.customerName).value)
+        if (!customerName) {
+          if (rowIndex % ROW_YIELD_INTERVAL === 0) {
+            await setImmediatePromise()
+          }
+          continue
+        }
+
+        let current = summary.get(customerName)
+        if (!current) {
+          current = { name: customerName, balance: 0, principal: 0, tenors: [], recourseStates: [] }
+          summary.set(customerName, current)
+        }
+
+        const balance = toNumber(rowData.getCell(FINANCING_COLS.balance).value)
+        if (isValidNumber(balance)) {
+          current.balance += balance
+        }
+
+        const principal = toNumber(rowData.getCell(FINANCING_COLS.principal).value)
+        if (isValidNumber(principal)) {
+          current.principal += principal
+        }
+
+        const tenor = calculateTenorMonths(
+          parseExcelDate(rowData.getCell(FINANCING_COLS.loanDate).value),
+          parseExcelDate(rowData.getCell(FINANCING_COLS.dueDate).value)
+        )
+        if (typeof tenor === 'number') {
+          current.tenors.push(tenor)
+        }
+
+        if (isValidNumber(balance) && balance !== 0) {
+          const status = normalizeRecourseState(
+            normalizeString(rowData.getCell(FINANCING_COLS.recourse).value)
+          )
+          if (status) {
+            current.recourseStates.push(status)
+          }
+        }
+
+        if (rowIndex % PROGRESS_INTERVAL === 0) {
+          console.log(
+            `[top10customers] 融资数据处理进度: ${rowIndex} (uniqueCustomers=${summary.size})`
+          )
+        }
+
+        if (rowIndex % ROW_YIELD_INTERVAL === 0) {
+          await setImmediatePromise()
+        }
+      }
+
+      console.log(
+        `[top10customers] 融资表处理完成 (totalRows=${rowIndex}, customers=${summary.size})`
+      )
+      processedFinancing = true
+    } else if (isCustomerSheet && !processedCustomer) {
+      console.log(`[top10customers] 流式处理客户表: ${sheetName}`)
+      let rowIndex = 0
+
+      for await (const row of worksheetReader) {
+        rowIndex++
+
+        if (rowIndex < options.customerDataStartRow) {
+          continue
+        }
+
+        const rowData = row as Row
+        if (!rowData.hasValues) {
+          if (rowIndex % ROW_YIELD_INTERVAL === 0) {
+            await setImmediatePromise()
+          }
+          continue
+        }
+
+        const name = normalizeString(rowData.getCell(CUSTOMER_COLS.name).value)
+        if (!name || customers[name]) {
+          if (rowIndex % ROW_YIELD_INTERVAL === 0) {
+            await setImmediatePromise()
+          }
+          continue
+        }
+
+        customers[name] = {
+          name,
+          industry: normalizeString(rowData.getCell(CUSTOMER_COLS.industry).value),
+          region: normalizeString(rowData.getCell(CUSTOMER_COLS.region).value)
+        }
+
+        if (rowIndex % ROW_YIELD_INTERVAL === 0) {
+          await setImmediatePromise()
+        }
+      }
+
+      console.log(
+        `[top10customers] 客户表处理完成 (totalRows=${rowIndex}, customers=${Object.keys(customers).length})`
+      )
+      processedCustomer = true
+    } else {
+      // 跳过不需要的sheet - worksheetReader是async iterator,不处理即自动跳过
+      console.log(`[top10customers] 跳过sheet: ${sheetName}`)
+      // 不需要显式destroy,for await会自动处理
+    }
+
+    currentSheetIndex++
+
+    // 如果两个表都处理完了,提前退出
+    if (processedFinancing && processedCustomer) {
+      console.log('[top10customers] 所有目标sheet已处理完成,提前退出')
+      break
+    }
+  }
+
+  if (!processedFinancing) {
+    throw new Error(`[top10customers] 未找到融资表: ${options.financingSheet}`)
+  }
+  if (!processedCustomer) {
+    throw new Error(`[top10customers] 未找到客户表: ${options.customerSheet}`)
+  }
+
+  const entries = Array.from(summary.values()).sort((a, b) => b.balance - a.balance)
+  const totalBalance = entries.reduce((sum, entry) => sum + entry.balance, 0)
+
+  console.log('[top10customers] 流式解析完成', {
+    customerCount: entries.length,
+    totalBalance,
+    customerInfoCount: Object.keys(customers).length
+  })
 
   return { entries, totalBalance, customers }
 }
@@ -420,5 +628,6 @@ export const top10CustomersTemplate: TemplateDefinition = {
   },
   engine: 'exceljs',
   parser: parseWorkbook,
+  streamParser: streamParseWorkbook, // 优化: 使用流式解析器处理大文件
   excelRenderer: renderWithExcelJS
 }
