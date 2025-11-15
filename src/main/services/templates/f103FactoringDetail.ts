@@ -543,7 +543,7 @@ const inputRules: FormCreateRule[] = [
 export const f103FactoringDetailTemplate: TemplateDefinition<FactoringUserInput> = {
   meta: {
     id: 'f103FactoringDetail',
-    name: '融资保理业务明细表（F103）',
+    name: '融资保理业务明细表',
     ext: 'xlsx',
     supportedSourceExts: ['xlsx'],
     description:

@@ -1,14 +1,7 @@
 <script setup lang="ts">
 import { trpc } from '../utils/trpc'
 import { computed } from 'vue'
-import {
-  SuccessFilled,
-  CircleCloseFilled,
-  FolderOpened,
-  Document,
-  Timer,
-  Calendar
-} from '@element-plus/icons-vue'
+import { SuccessFilled, CircleCloseFilled, FolderOpened } from '@element-plus/icons-vue'
 
 const props = defineProps<{ result: any }>()
 
@@ -33,74 +26,35 @@ async function openFolder() {
   >
     <!-- 成功状态 -->
     <template v-if="result.success">
-      <div class="result-header success-header">
-        <div class="status-icon success-icon">
-          <el-icon :size="32"><SuccessFilled /></el-icon>
+      <div class="result-content">
+        <div class="result-icon success-icon">
+          <el-icon><SuccessFilled /></el-icon>
         </div>
-        <div class="status-content">
-          <h3 class="status-title">报表生成成功</h3>
-          <p class="status-desc">文件已保存到指定目录</p>
-        </div>
-      </div>
-
-      <div class="result-details">
-        <div class="detail-item">
-          <div class="detail-icon">
-            <el-icon :size="16"><Document /></el-icon>
-          </div>
-          <div class="detail-content">
-            <span class="detail-label">文件名称</span>
-            <span class="detail-value">{{ fileName }}</span>
+        <div class="result-info">
+          <div class="result-title">✓ 报表生成成功</div>
+          <div class="result-meta">
+            <span class="meta-item">{{ fileName }}</span>
+            <span class="meta-divider">·</span>
+            <span class="meta-item">{{ (result.size / 1024).toFixed(1) }} KB</span>
+            <span class="meta-divider">·</span>
+            <span class="meta-item">{{ result.duration }}s</span>
           </div>
         </div>
-
-        <div class="detail-item">
-          <div class="detail-icon">
-            <el-icon :size="16"><Document /></el-icon>
-          </div>
-          <div class="detail-content">
-            <span class="detail-label">文件大小</span>
-            <span class="detail-value">{{ (result.size / 1024).toFixed(2) }} KB</span>
-          </div>
-        </div>
-
-        <div class="detail-item">
-          <div class="detail-icon">
-            <el-icon :size="16"><Calendar /></el-icon>
-          </div>
-          <div class="detail-content">
-            <span class="detail-label">生成时间</span>
-            <span class="detail-value">{{ new Date(result.generatedAt).toLocaleString() }}</span>
-          </div>
-        </div>
-
-        <div class="detail-item">
-          <div class="detail-icon">
-            <el-icon :size="16"><Timer /></el-icon>
-          </div>
-          <div class="detail-content">
-            <span class="detail-label">用时</span>
-            <span class="detail-value">{{ result.duration }}s</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="result-actions">
-        <el-button type="primary" size="large" :icon="FolderOpened" @click="openFolder">
-          打开文件所在文件夹
+        <el-button type="primary" :icon="FolderOpened" size="default" @click="openFolder">
+          打开文件夹
         </el-button>
       </div>
     </template>
 
     <!-- 失败状态 -->
     <template v-else>
-      <div class="result-header error-header">
-        <div class="status-icon error-icon">
-          <el-icon :size="32"><CircleCloseFilled /></el-icon>
+      <div class="result-content">
+        <div class="result-icon error-icon">
+          <el-icon><CircleCloseFilled /></el-icon>
         </div>
-        <div class="status-content">
-          <h3 class="status-title">报表生成失败</h3>
-          <p class="status-desc">{{ result.error || '未知错误' }}</p>
+        <div class="result-info">
+          <div class="result-title">✗ 生成失败</div>
+          <div class="result-error">{{ result.error || '未知错误' }}</div>
         </div>
       </div>
     </template>
@@ -109,17 +63,17 @@ async function openFolder() {
 
 <style scoped>
 .result-card {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  animation: slideIn 0.3s ease-out;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 16px;
+  border: 1.5px solid #e5e7eb;
+  animation: slideIn 0.25s ease-out;
 }
 
 @keyframes slideIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -128,146 +82,86 @@ async function openFolder() {
 }
 
 .result-card.success {
-  border: 2px solid #10b981;
+  border-color: #10b981;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
 }
 
 .result-card.error {
-  border: 2px solid #ef4444;
+  border-color: #ef4444;
+  background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
 }
 
-/* 头部区域 */
-.result-header {
+/* 内容区域 */
+.result-content {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid #f5f7fa;
+  gap: 12px;
 }
 
-.status-icon {
+.result-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
   border-radius: 50%;
-  animation: iconPulse 0.5s ease-out;
-}
-
-@keyframes iconPulse {
-  0% {
-    transform: scale(0.8);
-    opacity: 0;
-  }
-  50% {
-    transform: scale(1.1);
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  font-size: 20px;
 }
 
 .success-icon {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  background: #d1fae5;
   color: #10b981;
 }
 
 .error-icon {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  background: #fee2e2;
   color: #ef4444;
 }
 
-.status-content {
+.result-info {
   flex: 1;
+  min-width: 0;
 }
 
-.status-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #303133;
-  margin: 0 0 6px 0;
-}
-
-.status-desc {
+.result-title {
   font-size: 14px;
-  color: #606266;
-  margin: 0;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 4px;
 }
 
-/* 详情区域 */
-.result-details {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  padding: 20px 0;
-}
-
-.detail-item {
+.result-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  transition: all 0.3s;
-}
-
-.detail-item:hover {
-  background: #e8ecf1;
-  transform: translateX(4px);
-}
-
-.detail-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: white;
-  border-radius: 6px;
-  color: #3b82f6;
-}
-
-.detail-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.detail-label {
+  gap: 6px;
   font-size: 12px;
-  color: #909399;
+  color: #6b7280;
 }
 
-.detail-value {
-  font-size: 14px;
-  font-weight: 500;
-  color: #303133;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.meta-item {
   white-space: nowrap;
 }
 
-/* 操作区域 */
-.result-actions {
-  display: flex;
-  justify-content: center;
-  padding-top: 20px;
-  border-top: 2px solid #f5f7fa;
+.meta-divider {
+  color: #d1d5db;
 }
 
-.result-actions .el-button {
-  min-width: 240px;
-  font-size: 15px;
+.result-error {
+  font-size: 13px;
+  color: #ef4444;
+  line-height: 1.4;
+}
+
+/* 按钮样式 */
+.result-content .el-button {
+  flex-shrink: 0;
   font-weight: 600;
-  height: 44px;
-  border-radius: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
 }
 
-.result-actions .el-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+.result-content .el-button:hover {
+  transform: scale(1.02);
 }
 </style>

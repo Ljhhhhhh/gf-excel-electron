@@ -35,6 +35,14 @@ function resetExtraSources() {
   extraSources.value = {}
 }
 
+// 切换模板时重置所有报表相关状态
+function resetReportState() {
+  reportName.value = ''
+  userInput.value = {}
+  result.value = null
+  extraSources.value = {}
+}
+
 async function generate(templateId: string) {
   if (!templateId || !sourcePath.value || !outputDir.value) return
   generating.value = true
@@ -46,11 +54,15 @@ async function generate(templateId: string) {
         extraSourcePayload[key] = value
       }
     })
+    let reportNamePayload = reportName.value || undefined
+    if (reportName.value && !reportName.value.endsWith('.xlsx')) {
+      reportNamePayload = reportName.value + '.xlsx'
+    }
     const res = await trpc.report.generate.mutate({
       templateId,
       sourcePath: sourcePath.value!,
       outputDir: outputDir.value!,
-      reportName: reportName.value || undefined,
+      reportName: reportNamePayload,
       userInput: Object.keys(userInput.value).length > 0 ? userInput.value : undefined,
       extraSources: Object.keys(extraSourcePayload).length ? extraSourcePayload : undefined
     })
@@ -76,6 +88,7 @@ export function useReport() {
     extraSources,
     setExtraSource,
     resetExtraSources,
+    resetReportState,
     generate
   }
 }

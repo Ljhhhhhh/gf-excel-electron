@@ -100,16 +100,8 @@ defineExpose({
       {{ error }}
     </el-alert>
 
-    <!-- 无需参数 -->
-    <div v-else-if="!ruleData?.inputRule" class="no-input-hint">
-      <el-alert type="info" :closable="false" show-icon>
-        <template #title>此模板无需额外参数</template>
-        该模板不需要用户输入额外参数，可以直接生成报表。
-      </el-alert>
-    </div>
-
     <!-- formCreate v3 动态表单 -->
-    <div v-else class="form-container">
+    <div v-if="ruleData?.inputRule" class="form-container">
       <form-create
         v-model="formData"
         v-model:api="formApi"
@@ -136,7 +128,19 @@ defineExpose({
 }
 
 .no-input-hint {
-  padding: 20px 0;
+  padding: 8px 0;
+  text-align: center;
+}
+
+.hint-text {
+  display: inline-block;
+  font-size: 13px;
+  color: #10b981;
+  font-weight: 600;
+  padding: 6px 14px;
+  background: #f0fdf4;
+  border-radius: 6px;
+  border: 1px solid #d1fae5;
 }
 
 .form-container {
