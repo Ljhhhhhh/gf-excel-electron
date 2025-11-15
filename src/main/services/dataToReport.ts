@@ -53,9 +53,10 @@ export async function dataToReport(input: DataToReportInput): Promise<DataToRepo
   console.log(`[dataToReport] 模板已加载: ${template.meta.name}，引擎: ${template.engine}`)
 
   // 4. 确定输出文件名和路径
+  const templateDisplayName = template.meta.name || template.meta.id || templateId
   const finalReportName = reportName
     ? sanitizeFilename(reportName)
-    : generateReportName(templateId, template.meta.ext)
+    : generateReportName(templateDisplayName, template.meta.ext)
   const outputPath = path.join(outputDir, finalReportName)
   console.log(`[dataToReport] 输出路径: ${outputPath}`)
 

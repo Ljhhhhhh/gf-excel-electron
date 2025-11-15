@@ -7,11 +7,12 @@ import { format } from 'date-fns'
 
 /**
  * 生成报表文件名（兜底策略）
- * 格式: <templateId>-YYYYMMDD-HHmmss.xlsx
+ * 格式: <templateName>-YYYYMMDD-HHmmss.xlsx
  */
-export function generateReportName(templateId: string, ext = 'xlsx'): string {
-  const timestamp = format(new Date(), 'yyyyMMdd-HHmmss')
-  return `${templateId}-${timestamp}.${ext}`
+export function generateReportName(templateName: string, ext = 'xlsx'): string {
+  const timestamp = format(new Date(), 'yyyyMMddHHmmss')
+  const baseName = templateName?.trim() ? templateName.trim() : 'report'
+  return `${sanitizeFilename(baseName)}-${timestamp}.${ext}`
 }
 
 /**
