@@ -10,6 +10,7 @@ import { month4excelTemplate } from './month4excel'
 import { basicTemplate } from './basic'
 import { top10CustomersTemplate } from './top10customers'
 import { bankCommonTemplate } from './bankCommon'
+import { f103FactoringDetailTemplate } from './f103FactoringDetail'
 
 /**
  * 初始化模板系统
@@ -25,6 +26,7 @@ export function initTemplates(): void {
   registerTemplate(top10CustomersTemplate)
   registerTemplate(basicTemplate)
   registerTemplate(bankCommonTemplate)
+  registerTemplate(f103FactoringDetailTemplate)
 
   console.log('[Templates] 模板系统初始化完成')
 }
