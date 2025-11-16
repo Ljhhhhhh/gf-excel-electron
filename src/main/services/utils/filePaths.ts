@@ -48,7 +48,9 @@ export function getTemplateRootDir(): string {
  */
 export function getTemplatePath(filename: string): string {
   const rootDir = getTemplateRootDir()
-  return path.join(rootDir, filename)
+  // const rootDir = '../../../../resources/reportTemplates'
+  const templatePath = path.join(rootDir, filename)
+  return templatePath
 }
 
 /**
