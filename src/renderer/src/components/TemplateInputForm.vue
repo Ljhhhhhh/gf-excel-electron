@@ -106,7 +106,13 @@ defineExpose({
         v-model="formData"
         v-model:api="formApi"
         :rule="ruleData.inputRule.rules"
-        :option="ruleData.inputRule.options || {}"
+        :option="{
+          ...(ruleData.inputRule.options || {}),
+          form: {
+            ...(ruleData.inputRule.options?.form || {}),
+            inline: true
+          }
+        }"
       />
 
       <!-- 参数说明（可选） -->

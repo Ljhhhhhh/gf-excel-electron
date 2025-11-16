@@ -82,21 +82,6 @@ const sectionCompleted = computed(() => ({
   params: !currentInputRule.value
 }))
 
-// 进度计算
-const progressPercent = computed(() => {
-  let completed = 0
-  if (sectionCompleted.value.params) completed++
-  if (sectionCompleted.value.files) completed++
-  const total = 2
-  return Math.round((completed / total) * 100)
-})
-
-const progressText = computed(() => {
-  const params = sectionCompleted.value.params ? '✓' : '○'
-  const files = sectionCompleted.value.files ? '✓' : '○'
-  return `${params} 模板参数  ${files} 文件配置`
-})
-
 function onParamsChange(data: Record<string, any>) {
   setUserInput(data)
 }
@@ -125,10 +110,6 @@ async function submit() {
     <!-- 头部：模板信息 + 报表名称 -->
     <div v-if="currentTemplateId" class="form-header">
       <div class="header-left">
-        <div class="header-badge">
-          <span class="badge-emoji">📄</span>
-          <span class="badge-text">当前模板</span>
-        </div>
         <h2 class="header-title">{{ currentTemplateName }}</h2>
       </div>
       <div class="header-right">
@@ -144,14 +125,6 @@ async function submit() {
           </template>
         </el-input>
       </div>
-    </div>
-
-    <!-- 表单填写进度 -->
-    <div v-if="currentTemplateId" class="form-progress">
-      <div class="progress-bar">
-        <div class="progress-fill" :style="{ width: progressPercent + '%' }" />
-      </div>
-      <span class="progress-text">{{ progressText }}</span>
     </div>
 
     <!-- 配置表单 -->
@@ -297,37 +270,6 @@ async function submit() {
   min-width: 0;
 }
 
-.header-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
-  border-radius: 6px;
-  flex-shrink: 0;
-}
-
-.badge-emoji {
-  font-size: 16px;
-}
-
-.badge-text {
-  font-size: 12px;
-  font-weight: 600;
-  color: #4f46e5;
-}
-
-.header-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #111827;
-  margin: 0;
-  letter-spacing: -0.01em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .header-right {
   flex-shrink: 0;
   min-width: 280px;
@@ -356,38 +298,6 @@ async function submit() {
 .input-prefix {
   font-size: 16px;
   margin-right: 4px;
-}
-
-/* 进度条 */
-.form-progress {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: #ffffff;
-  border-radius: 10px;
-  border: 1px solid #e5e7eb;
-}
-
-.progress-bar {
-  flex: 1;
-  height: 6px;
-  background: #f3f4f6;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #4f46e5 0%, #6366f1 100%);
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.progress-text {
-  font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
-  white-space: nowrap;
 }
 
 /* 表单区域 */
