@@ -14,9 +14,11 @@ import { ReportRenderError, OutputWriteError, OutputDirNotSelectedError } from '
 import { getTemplatePath, ensureOutputDir } from './utils/filePaths'
 import { generateReportName, sanitizeFilename } from './utils/naming'
 import { getFileSize, deleteFileIfExists } from './utils/fileOps'
+import { createLogger } from './logger'
 
 // 将 carbone.render 转为 Promise 形式
 const renderAsync = promisify(carbone.render)
+const log = createLogger('dataToReport')
 
 /**
  * 默认 Carbone 选项
@@ -34,7 +36,7 @@ const DEFAULT_CARBONE_OPTIONS = {
 export async function dataToReport(input: DataToReportInput): Promise<DataToReportResult> {
   const { templateId, parsedData, outputDir, reportName, renderOptions, userInput } = input
 
-  console.log(`[dataToReport] 开始生成报表: ${templateId}`)
+  log.info('开始生成报表', { templateId, outputDir })
 
   // 1. 校验输出目录
   if (!outputDir) {
@@ -50,7 +52,11 @@ export async function dataToReport(input: DataToReportInput): Promise<DataToRepo
 
   // 3. 获取模板定义
   const template = getTemplate(templateId)
-  console.log(`[dataToReport] 模板已加载: ${template.meta.name}，引擎: ${template.engine}`)
+  log.info('模板已加载', {
+    templateId,
+    templateName: template.meta.name,
+    engine: template.engine
+  })
 
   // 4. 确定输出文件名和路径
   const templateDisplayName = template.meta.name || template.meta.id || templateId
@@ -58,12 +64,12 @@ export async function dataToReport(input: DataToReportInput): Promise<DataToRepo
     ? sanitizeFilename(reportName)
     : generateReportName(templateDisplayName, template.meta.ext)
   const outputPath = path.join(outputDir, finalReportName)
-  console.log(`[dataToReport] 输出路径: ${outputPath}`)
+  log.info('输出路径已确定', { outputPath })
 
   // 5. 根据引擎类型分支处理
   if (template.engine === 'exceljs') {
     // ========== ExcelJS 模式 ==========
-    console.log(`[dataToReport] 使用 ExcelJS 引擎渲染...`)
+    log.info('使用 ExcelJS 引擎渲染', { templateId })
 
     if (!template.excelRenderer) {
       throw new ReportRenderError(
@@ -78,13 +84,13 @@ export async function dataToReport(input: DataToReportInput): Promise<DataToRepo
 
       // 调用 ExcelJS 渲染器，直接生成文件
       await template.excelRenderer(parsedData, userInput, outputPath)
-      console.log(`[dataToReport] ExcelJS 渲染完成`)
+      log.info('ExcelJS 渲染完成', { templateId, outputPath })
     } catch (error) {
       throw new ReportRenderError(templateId, error)
     }
   } else {
     // ========== Carbone 模式 ==========
-    console.log(`[dataToReport] 使用 Carbone 引擎渲染...`)
+    log.info('使用 Carbone 引擎渲染', { templateId })
 
     if (!template.builder) {
       throw new ReportRenderError(
@@ -97,8 +103,7 @@ export async function dataToReport(input: DataToReportInput): Promise<DataToRepo
     let reportData
     try {
       reportData = template.builder(parsedData, userInput)
-      console.log(`[dataToReport] 报表数据已构建`)
-      console.log('[dataToReport] 传递给 Carbone 的数据:', JSON.stringify(reportData, null, 2))
+      log.info('报表数据已构建', { templateId })
     } catch (error) {
       throw new ReportRenderError(templateId, error)
     }
@@ -118,14 +123,17 @@ export async function dataToReport(input: DataToReportInput): Promise<DataToRepo
       )
     }
     const templatePath = getTemplatePath(template.meta.filename)
-    console.log(`[dataToReport] 模板文件路径: ${templatePath}`)
+    log.info('Carbone 模板路径已解析', { templatePath })
 
     // 4.4. 使用 Carbone 渲染
     let resultBuffer: Buffer
     try {
       const result = await renderAsync(templatePath, reportData, carboneOptions)
       resultBuffer = result as Buffer
-      console.log(`[dataToReport] Carbone 渲染完成，大小: ${resultBuffer.length} 字节`)
+      log.info('Carbone 渲染完成', {
+        templateId,
+        bufferSize: resultBuffer.length
+      })
     } catch (error) {
       throw new ReportRenderError(templateId, error)
     }
@@ -134,46 +142,45 @@ export async function dataToReport(input: DataToReportInput): Promise<DataToRepo
     try {
       deleteFileIfExists(outputPath)
       fs.writeFileSync(outputPath, resultBuffer)
-      console.log(`[dataToReport] 报表已写入`)
+      log.info('报表文件写入完成', { outputPath })
     } catch (error) {
       throw new OutputWriteError(outputPath, error)
     }
 
     // 4.6. 如果有 postProcess 钩子，先用 xlsx-js-style 规范化 Carbone 生成的文件
     if (template.postProcess) {
-      console.log(`[dataToReport] 检测到 postProcess 钩子，先规范化文件格式...`)
+      log.info('检测到 postProcess 钩子，准备规范化', { templateId })
       try {
         const tempPath = `${outputPath}.temp.xlsx`
 
         // 使用 xlsx-js-style 读取 Carbone 生成的文件（对格式更宽容）
         const workbook = XLSX.readFile(outputPath)
-        console.log(`[dataToReport] 使用 xlsx-js-style 读取 Carbone 文件成功`)
+        log.info('xlsx-js-style 读取成功', { outputPath })
 
         // 重新写入文件（这会规范化文件结构，使 ExcelJS 能读取）
         XLSX.writeFile(workbook, tempPath)
-        console.log(`[dataToReport] 已规范化并保存到临时文件`)
+        log.info('规范化写入临时文件完成', { tempPath })
 
         // 删除原 Carbone 文件
         deleteFileIfExists(outputPath)
 
         // 将临时文件重命名为原文件名
         fs.renameSync(tempPath, outputPath)
-        console.log(`[dataToReport] 文件格式规范化完成，现在 ExcelJS 可以读取了`)
+        log.info('规范化完成并替换原文件', { outputPath })
       } catch (normalizeError) {
-        console.warn(`[dataToReport] 文件规范化失败:`, normalizeError)
-        console.warn(`[dataToReport] 将尝试直接执行 postProcess（可能失败）`)
+        log.warn('文件规范化失败，尝试继续执行 postProcess', { error: normalizeError })
       }
     }
   }
 
   // 6. 调用后处理钩子（两种引擎共用）
   if (template.postProcess) {
-    console.log(`[dataToReport] 开始执行后处理钩子...`)
+    log.info('开始执行 postProcess', { templateId, outputPath })
     try {
       await template.postProcess(outputPath, userInput)
-      console.log(`[dataToReport] 后处理钩子执行完成`)
+      log.info('postProcess 执行完成', { templateId, outputPath })
     } catch (error) {
-      console.error(`[dataToReport] 后处理钩子执行失败:`, error)
+      log.error('postProcess 执行失败', { templateId, outputPath, error })
       throw new ReportRenderError(templateId, error)
     }
   }

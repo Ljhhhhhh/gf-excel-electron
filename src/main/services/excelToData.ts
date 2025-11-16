@@ -21,6 +21,9 @@ import {
   MissingSourceError
 } from './errors'
 import { getFileSize, getFileExtension } from './utils/fileOps'
+import { createLogger } from './logger'
+
+const log = createLogger('excelToData')
 
 /**
  * 文件大小限制（MB）
@@ -36,11 +39,11 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
   const { sourcePath, templateId, parseOptions, extraSources } = input
   const warnings: Warning[] = []
 
-  console.log(`[excelToData] 开始处理: ${sourcePath} with template: ${templateId}`)
+  log.info('开始解析 Excel', { sourcePath, templateId })
 
   // 1. 获取模板定义
   const template = getTemplate(templateId)
-  console.log(`[excelToData] 模板已加载: ${template.meta.name}`)
+  log.info('模板已加载', { templateId, templateName: template.meta.name })
 
   // 2. 校验文件是否存在
   if (!fs.existsSync(sourcePath)) {
@@ -97,7 +100,11 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
     const workbook = new ExcelJS.Workbook()
     try {
       await workbook.xlsx.readFile(providedPath)
-      console.log(`[excelToData] 额外数据源已加载: ${requirement.label || requirement.id}`)
+      log.info('额外数据源已加载', {
+        requirementId: requirement.id,
+        label: requirement.label,
+        sheets: workbook.worksheets.map((ws) => ws.name)
+      })
     } catch (error) {
       throw new ExcelParseError(providedPath, error)
     }
@@ -125,10 +132,10 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
 
   if (supportsStreaming) {
     // 使用流式解析(避免全量加载)
-    console.log(`[excelToData] 使用流式解析模式`)
+    log.info('使用流式解析模式', { templateId })
     try {
       parsedData = await template.streamParser!(sourcePath, parserOptions)
-      console.log(`[excelToData] 流式解析完成`)
+      log.info('流式解析完成', { templateId })
     } catch (error) {
       throw new ExcelParseError(sourcePath, error)
     }
@@ -141,11 +148,15 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
     }
   } else {
     // 使用传统完整加载模式
-    console.log(`[excelToData] 使用完整加载模式`)
+    log.info('使用完整加载模式', { templateId })
     try {
       workbook = new ExcelJS.Workbook()
       await workbook.xlsx.readFile(sourcePath)
-      console.log(`[excelToData] Workbook 已加载,共 ${workbook.worksheets.length} 个 sheet`)
+      log.info('Workbook 已加载', {
+        templateId,
+        sheetCount: workbook.worksheets.length,
+        sheets: workbook.worksheets.map((ws) => ws.name)
+      })
     } catch (error) {
       throw new ExcelParseError(sourcePath, error)
     }
@@ -160,7 +171,10 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
     // 7. 调用模板解析器
     try {
       parsedData = await template.parser(workbook, parserOptions)
-      console.log(`[excelToData] 解析完成`)
+      log.info('解析完成', {
+        templateId,
+        warnings: warnings.length
+      })
     } catch (error) {
       throw new ExcelParseError(sourcePath, error)
     }
@@ -174,6 +188,13 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
       level: 'warn'
     })
   }
+
+  log.info('excelToData 完成', {
+    templateId,
+    sourcePath,
+    warningCount: warnings.length,
+    sheetCount: sourceMeta.sheets.length
+  })
 
   return {
     templateId,

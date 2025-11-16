@@ -1,6 +1,7 @@
 {
   "name": "gf-excel-electron",
   "version": "1.0.0",
+  "productName": "国富报表工具",
   "description": "An Electron application with Vue and TypeScript",
   "main": "./out/main/index.js",
   "author": "example.com",

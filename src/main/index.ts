@@ -8,6 +8,11 @@ import { createContext } from './trpc/context'
 import { initTemplates } from './services/templates' // 初始化模板注册中心
 
 let mainWindow: BrowserWindow | null = null
+const APP_ID = 'com.guofu.reporttool'
+const APP_DISPLAY_NAME = '国富报表工具'
+
+process.title = APP_DISPLAY_NAME
+app.setName(APP_DISPLAY_NAME)
 
 function createWindow(): void {
   // Create the browser window.
@@ -16,6 +21,7 @@ function createWindow(): void {
     height: 800,
     show: false,
     autoHideMenuBar: true,
+    title: APP_DISPLAY_NAME,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -62,7 +68,7 @@ if (!gotTheLock) {
   app.whenReady().then(() => {
     initTemplates()
     // Set app user model id for windows
-    electronApp.setAppUserModelId('com.electron')
+    electronApp.setAppUserModelId(APP_ID)
 
     // Default open or close DevTools by F12 in development
     // and ignore CommandOrControl + R in production.

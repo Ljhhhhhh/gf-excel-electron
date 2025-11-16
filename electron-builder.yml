@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: gf-excel-electron
+appId: com.guofu.reporttool
+productName: 国富报表工具
 directories:
   buildResources: build
 files:
@@ -17,9 +17,9 @@ extraResources:
     filter:
       - '**/*'
 win:
-  executableName: gf-excel-electron
+  executableName: 国富报表工具
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: ${productName}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
@@ -32,7 +32,7 @@ mac:
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
 dmg:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${productName}-${version}.${ext}
 linux:
   target:
     - AppImage
@@ -41,7 +41,7 @@ linux:
   maintainer: electronjs.org
   category: Utility
 appImage:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${productName}-${version}.${ext}
 npmRebuild: false
 publish:
   provider: generic

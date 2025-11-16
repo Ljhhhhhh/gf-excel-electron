@@ -18,6 +18,9 @@ import {
   OutputWriteError,
   MissingSourceError
 } from '../../services/errors'
+import { createLogger } from '../../services/logger'
+
+const log = createLogger('reportRouter')
 
 /**
  * 报表生成输入参数 Schema
@@ -50,7 +53,11 @@ export const reportRouter = router({
    */
   generate: publicProcedure.input(generateInputSchema).mutation(async ({ input }) => {
     const startTime = Date.now()
-    console.log('[Report Router] 开始生成报表:', input.templateId)
+    log.info('开始生成报表', {
+      templateId: input.templateId,
+      sourcePath: input.sourcePath,
+      outputDir: input.outputDir
+    })
 
     try {
       // 步骤 1: Excel → 数据
@@ -61,7 +68,11 @@ export const reportRouter = router({
         extraSources: input.extraSources
       })
 
-      console.log(`[Report Router] 数据解析完成，警告数量: ${parseResult.warnings.length}`)
+      log.info('Excel 解析完成', {
+        templateId: input.templateId,
+        warningCount: parseResult.warnings.length,
+        sheets: parseResult.sourceMeta.sheets
+      })
 
       // 步骤 2: 数据 → 报表
       const reportResult = await dataToReport({
@@ -74,9 +85,12 @@ export const reportRouter = router({
       })
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2)
-      console.log(
-        `[Report Router] 报表生成成功，耗时: ${duration}s，输出: ${reportResult.outputPath}`
-      )
+      log.info('报表生成成功', {
+        templateId: input.templateId,
+        durationSeconds: Number(duration),
+        outputPath: reportResult.outputPath,
+        size: reportResult.size
+      })
 
       // 返回成功结果
       return {
@@ -88,7 +102,10 @@ export const reportRouter = router({
         duration
       }
     } catch (error) {
-      console.error('[Report Router] 报表生成失败:', error)
+      log.error('报表生成失败', {
+        templateId: input.templateId,
+        error
+      })
 
       // 映射自定义错误到 TRPCError
       if (error instanceof TemplateNotFoundError) {
