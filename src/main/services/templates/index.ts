@@ -4,13 +4,14 @@
  */
 
 import { registerTemplate } from './registry'
-import { month1carboneTemplate } from './month1carbone'
+// import { month1carboneTemplate } from './month1carbone'
 import { month2exceljsTemplate } from './month2exceljs'
 import { month4excelTemplate } from './month4excel'
 import { top10CustomersTemplate } from './top10customers'
 import { bankCommonTemplate } from './bankCommon'
 import { f103FactoringDetailTemplate } from './f103FactoringDetail'
 import { localStatisticsTemplate } from './localStatistics'
+import { month1excelTemplate } from './month1excel'
 
 /**
  * 初始化模板系统
@@ -20,7 +21,8 @@ export function initTemplates(): void {
   console.log('[Templates] 开始初始化模板系统...')
 
   // 注册所有模板
-  registerTemplate(month1carboneTemplate)
+  // registerTemplate(month1carboneTemplate) // * 改用 month1excelTemplate 解决打包后多数据源+carbone模板生成报错的问题
+  registerTemplate(month1excelTemplate)
   registerTemplate(month2exceljsTemplate)
   registerTemplate(month4excelTemplate)
   registerTemplate(top10CustomersTemplate)
