@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
-import type { Workbook, Cell, Worksheet, DataValidation } from 'exceljs'
+import type { Workbook, Cell, Worksheet, DataValidation, Row } from 'exceljs'
+import { setImmediate as setImmediatePromise } from 'node:timers/promises'
 import type { TemplateDefinition, ParseOptions, FormCreateRule } from './types'
 
 interface FactoringParseOptions extends ParseOptions {
@@ -135,6 +136,13 @@ const ECONOMIC_INDUSTRY_CLASSIFICATIONS = [
 const HEADER_FILL = 'FFDDEBF7'
 const HEADER_FONT_COLOR = 'FF000000'
 const HEADER_FONT_SIZE = 10
+const STREAM_WORKBOOK_OPTIONS = {
+  sharedStrings: 'cache' as const,
+  hyperlinks: 'ignore' as const,
+  styles: 'ignore' as const,
+  worksheets: 'emit' as const
+}
+const ROW_YIELD_INTERVAL = 2000
 
 export function parseWorkbook(
   workbook: Workbook,
@@ -160,22 +168,101 @@ export function parseWorkbook(
 
   for (let rowIndex = options.dataStartRow; rowIndex <= endRow; rowIndex++) {
     const row = worksheet.getRow(rowIndex)
-    if (!row.hasValues) continue
-
-    rows.push({
-      customerName: row.getCell(3).value,
-      enterpriseType: row.getCell(6).value,
-      actualLoanDate: row.getCell(16).value,
-      dueDate: row.getCell(42).value,
-      principalAmount: row.getCell(49).value,
-      rateAdjusted: row.getCell(59).value,
-      rateOriginal: row.getCell(58).value,
-      assetId: row.getCell(11).value
-    })
+    const parsed = extractFactoringRow(row)
+    if (parsed) {
+      rows.push(parsed)
+    }
   }
 
   console.log(`[f103FactoringDetail] 解析完成，共获取 ${rows.length} 行放款记录`)
   return { rows }
+}
+
+export async function streamParseWorkbook(
+  filePath: string,
+  parseOptions?: FactoringParseOptions
+): Promise<FactoringParsedData> {
+  const options = {
+    sheet: parseOptions?.sheet ?? 0,
+    dataStartRow: parseOptions?.dataStartRow ?? 2,
+    maxRows: parseOptions?.maxRows ?? 200000
+  }
+
+  console.log('[f103FactoringDetail] 开始流式解析', {
+    filePath,
+    sheet: options.sheet,
+    dataStartRow: options.dataStartRow,
+    maxRows: options.maxRows
+  })
+
+  const workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(filePath, STREAM_WORKBOOK_OPTIONS)
+  const rows: FactoringParsedRow[] = []
+  const targetSheetName = typeof options.sheet === 'string' ? options.sheet : null
+  const targetSheetIndex = typeof options.sheet === 'number' ? options.sheet : null
+  const maxRowIndex = options.dataStartRow + options.maxRows - 1
+  let sheetIndex = 0
+  let processedSheet = false
+
+  for await (const worksheetReader of workbookReader) {
+    const sheetName = (worksheetReader as any).name
+    const isTarget =
+      (targetSheetName && sheetName === targetSheetName) ||
+      (targetSheetIndex !== null && sheetIndex === targetSheetIndex)
+
+    if (!isTarget) {
+      sheetIndex++
+      continue
+    }
+
+    let rowIndex = 0
+    for await (const row of worksheetReader) {
+      rowIndex++
+      if (rowIndex < options.dataStartRow) {
+        continue
+      }
+      if (rowIndex > maxRowIndex) {
+        break
+      }
+
+      const parsed = extractFactoringRow(row as Row)
+      if (parsed) {
+        rows.push(parsed)
+      }
+
+      if (rowIndex % ROW_YIELD_INTERVAL === 0) {
+        await setImmediatePromise()
+      }
+    }
+
+    processedSheet = true
+    console.log(
+      `[f103FactoringDetail] 流式解析完成，共获取 ${rows.length} 行 (sheet=${sheetName ?? `#${sheetIndex}`})`
+    )
+    break
+  }
+
+  if (!processedSheet) {
+    throw new Error(`[f103FactoringDetail] 无法找到工作表: ${options.sheet}`)
+  }
+
+  return { rows }
+}
+
+function extractFactoringRow(row: Row): FactoringParsedRow | null {
+  if (!row.hasValues) {
+    return null
+  }
+
+  return {
+    customerName: row.getCell(3).value,
+    enterpriseType: row.getCell(6).value,
+    actualLoanDate: row.getCell(16).value,
+    dueDate: row.getCell(42).value,
+    principalAmount: row.getCell(49).value,
+    rateAdjusted: row.getCell(59).value,
+    rateOriginal: row.getCell(58).value,
+    assetId: row.getCell(11).value
+  }
 }
 
 function parseExcelDate(value: any): Date | null {
@@ -547,7 +634,8 @@ export const f103FactoringDetailTemplate: TemplateDefinition<FactoringUserInput>
     ext: 'xlsx',
     supportedSourceExts: ['xlsx'],
     description:
-      '基于放款明细中的实际放款日期，生成国富 F103 融资保理业务明细表，并附带经济行业分类下拉选项字典'
+      '基于放款明细中的实际放款日期，生成国富 F103 融资保理业务明细表，并附带经济行业分类下拉选项字典',
+    sourceLabel: '放款明细表'
   },
   engine: 'exceljs',
   inputRule: {
@@ -569,5 +657,6 @@ export const f103FactoringDetailTemplate: TemplateDefinition<FactoringUserInput>
     `.trim()
   },
   parser: parseWorkbook,
+  streamParser: streamParseWorkbook,
   excelRenderer: renderWithExcelJS
 }

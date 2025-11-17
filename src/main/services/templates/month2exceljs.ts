@@ -5,7 +5,8 @@
  */
 
 import ExcelJS from 'exceljs'
-import type { Workbook } from 'exceljs'
+import type { Workbook, Row } from 'exceljs'
+import { setImmediate as setImmediatePromise } from 'node:timers/promises'
 import type { TemplateDefinition, ParseOptions, FormCreateRule } from './types'
 
 // ========== 类型定义 ==========
@@ -28,6 +29,23 @@ interface Month2ParsedData {
   }>
 }
 
+const DEFAULT_DATA_START_ROW = 2
+const DEFAULT_MAX_ROWS = 100000
+const ROW_YIELD_INTERVAL = 2000
+const PROGRESS_INTERVAL = 10000
+const STREAM_WORKBOOK_OPTIONS = {
+  sharedStrings: 'cache' as const,
+  hyperlinks: 'ignore' as const,
+  styles: 'ignore' as const,
+  worksheets: 'emit' as const
+}
+
+const COLUMN_INDEX = {
+  actualLoanDate: 16,
+  industry: 27,
+  amount: 49
+}
+
 interface Month2UserInput {
   /** 查询年份 */
   queryYear: number
@@ -46,8 +64,8 @@ export function parseWorkbook(
 ): Month2ParsedData {
   const options = {
     sheet: parseOptions?.sheet ?? 0,
-    dataStartRow: parseOptions?.dataStartRow ?? 2,
-    maxRows: parseOptions?.maxRows ?? 100000
+    dataStartRow: parseOptions?.dataStartRow ?? DEFAULT_DATA_START_ROW,
+    maxRows: parseOptions?.maxRows ?? DEFAULT_MAX_ROWS
   }
 
   // 获取工作表
@@ -67,24 +85,113 @@ export function parseWorkbook(
   for (let rowNumber = options.dataStartRow; rowNumber <= endRow; rowNumber++) {
     const row = worksheet.getRow(rowNumber)
 
-    // 跳过空行
     if (!row.hasValues) {
       continue
     }
 
-    // 读取关键列（Excel列索引从1开始）
-    const 实际放款日期 = row.getCell(16).value // P列
-    const 所属行业 = row.getCell(27).value // AA列
-    const 放款金额 = row.getCell(49).value // AW列
-
-    rows.push({
-      实际放款日期,
-      所属行业,
-      放款金额
-    })
+    const parsed = extractRowData(row)
+    if (parsed) {
+      rows.push(parsed)
+    }
   }
 
   console.log(`[month2exceljs] 解析完成，共读取 ${rows.length} 行数据`)
+  return { rows }
+}
+
+/**
+ * 流式解析 workbook，适合大文件
+ */
+export async function streamParseWorkbook(
+  filePath: string,
+  parseOptions?: Month2ParseOptions
+): Promise<Month2ParsedData> {
+  const options = {
+    sheet: parseOptions?.sheet ?? 0,
+    dataStartRow: parseOptions?.dataStartRow ?? DEFAULT_DATA_START_ROW,
+    maxRows: parseOptions?.maxRows ?? DEFAULT_MAX_ROWS
+  }
+
+  console.log('[month2exceljs] 开始流式解析', {
+    filePath,
+    sheet: options.sheet,
+    dataStartRow: options.dataStartRow,
+    maxRows: options.maxRows
+  })
+
+  const workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(filePath, STREAM_WORKBOOK_OPTIONS)
+  const rows: Month2ParsedData['rows'] = []
+
+  const targetSheetName = typeof options.sheet === 'string' ? options.sheet : null
+  const targetSheetIndex = typeof options.sheet === 'number' ? options.sheet : null
+  let currentSheetIndex = 0
+  let processedTargetSheet = false
+
+  for await (const worksheetReader of workbookReader) {
+    const sheetName = (worksheetReader as any).name as string | undefined
+    const isTargetSheet =
+      (targetSheetName && sheetName === targetSheetName) ||
+      (targetSheetIndex !== null && currentSheetIndex === targetSheetIndex)
+
+    if (!isTargetSheet || processedTargetSheet) {
+      currentSheetIndex++
+      continue
+    }
+
+    console.log(`[month2exceljs] 流式处理工作表: ${sheetName ?? `#${currentSheetIndex + 1}`}`)
+    let rowIndex = 0
+
+    for await (const row of worksheetReader) {
+      rowIndex++
+
+      if (rowIndex < options.dataStartRow) {
+        continue
+      }
+
+      const rowData = row as Row
+      if (!rowData.hasValues) {
+        if (rowIndex % ROW_YIELD_INTERVAL === 0) {
+          await setImmediatePromise()
+        }
+        continue
+      }
+
+      if (rows.length >= options.maxRows) {
+        if (rowIndex % ROW_YIELD_INTERVAL === 0) {
+          await setImmediatePromise()
+        }
+        continue
+      }
+
+      const parsed = extractRowData(rowData)
+      if (parsed) {
+        rows.push(parsed)
+      }
+
+      if (rowIndex % PROGRESS_INTERVAL === 0) {
+        console.log(`[month2exceljs] 流式解析进度: row=${rowIndex}, collected=${rows.length}`)
+      }
+
+      if (rowIndex % ROW_YIELD_INTERVAL === 0) {
+        await setImmediatePromise()
+      }
+    }
+
+    processedTargetSheet = true
+    console.log(
+      `[month2exceljs] 流式解析完成: 读取 ${rows.length} 行 (targetSheet=${sheetName ?? targetSheetIndex})`
+    )
+    currentSheetIndex++
+
+    if (processedTargetSheet) {
+      break
+    }
+  }
+
+  if (!processedTargetSheet) {
+    throw new Error(`[month2exceljs] 未找到工作表: ${options.sheet}`)
+  }
+
   return { rows }
 }
 
@@ -161,6 +268,18 @@ function getColumnLetter(columnIndex: number): string {
     columnIndex = Math.floor((columnIndex - 1) / 26)
   }
   return letter
+}
+
+function extractRowData(row: Row): Month2ParsedData['rows'][number] | null {
+  if (!row.hasValues) {
+    return null
+  }
+
+  return {
+    实际放款日期: row.getCell(COLUMN_INDEX.actualLoanDate).value,
+    所属行业: row.getCell(COLUMN_INDEX.industry).value,
+    放款金额: row.getCell(COLUMN_INDEX.amount).value
+  }
 }
 
 /**
@@ -378,7 +497,8 @@ export const month2exceljsTemplate: TemplateDefinition<Month2UserInput> = {
     name: '月报2模板',
     ext: 'xlsx',
     supportedSourceExts: ['xlsx'],
-    description: '统计从1月到指定月份的三个行业（基建工程、医药医疗、再保理）新增放款数据'
+    description: '统计从1月到指定月份的三个行业（基建工程、医药医疗、再保理）新增放款数据',
+    sourceLabel: '放款明细表'
   },
   engine: 'exceljs',
   inputRule: {
@@ -413,5 +533,6 @@ export const month2exceljsTemplate: TemplateDefinition<Month2UserInput> = {
     `.trim()
   },
   parser: parseWorkbook,
+  streamParser: streamParseWorkbook,
   excelRenderer: renderWithExcelJS
 }

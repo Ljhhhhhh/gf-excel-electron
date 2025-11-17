@@ -624,7 +624,8 @@ export const top10CustomersTemplate: TemplateDefinition = {
     name: '前十大客户',
     ext: 'xlsx',
     supportedSourceExts: ['xlsx'],
-    description: '根据融资余额汇总并展示前十名客户的行业、地区、金额、占比与追索权情况'
+    description: '根据融资余额汇总并展示前十名客户的行业、地区、金额、占比与追索权情况',
+    sourceLabel: '台账'
   },
   engine: 'exceljs',
   parser: parseWorkbook,

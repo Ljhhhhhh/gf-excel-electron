@@ -7,7 +7,6 @@ import { registerTemplate } from './registry'
 import { month1carboneTemplate } from './month1carbone'
 import { month2exceljsTemplate } from './month2exceljs'
 import { month4excelTemplate } from './month4excel'
-import { basicTemplate } from './basic'
 import { top10CustomersTemplate } from './top10customers'
 import { bankCommonTemplate } from './bankCommon'
 import { f103FactoringDetailTemplate } from './f103FactoringDetail'
@@ -25,7 +24,6 @@ export function initTemplates(): void {
   registerTemplate(month2exceljsTemplate)
   registerTemplate(month4excelTemplate)
   registerTemplate(top10CustomersTemplate)
-  registerTemplate(basicTemplate)
   registerTemplate(bankCommonTemplate)
   registerTemplate(f103FactoringDetailTemplate)
   registerTemplate(localStatisticsTemplate)

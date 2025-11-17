@@ -55,9 +55,20 @@ export class ExcelFileTooLargeError extends AppError {
 
 export class ExcelParseError extends AppError {
   constructor(filePath: string, originalError: unknown) {
+    const errorDetails =
+      originalError instanceof Error
+        ? {
+            type: originalError.name,
+            message: originalError.message,
+            stack: originalError.stack
+          }
+        : {
+            message: String(originalError)
+          }
+
     super('EXCEL_PARSE_ERROR', `Excel 解析失败: ${filePath}`, {
       filePath,
-      originalError: originalError instanceof Error ? originalError.message : String(originalError)
+      originalError: errorDetails
     })
   }
 }

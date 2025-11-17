@@ -1,5 +1,7 @@
-import type { Workbook } from 'exceljs'
-import type { FormCreateRule, ParseOptions, TemplateDefinition } from './types'
+import ExcelJS from 'exceljs'
+import type { Workbook, Row } from 'exceljs'
+import type { FormCreateRule, ParseOptions, TemplateDefinition, ExtraSourceContext } from './types'
+import { streamWorksheetRows } from './streamUtils'
 
 const DEFAULT_LOAN_SHEET = 0
 const DEFAULT_ASSET_SHEET = 0
@@ -7,6 +9,13 @@ const DEFAULT_LOAN_START_ROW = 2
 const DEFAULT_ASSET_START_ROW = 2
 const DEFAULT_MAX_ROWS = 300000
 const ASSET_SOURCE_ID = 'assetDetail'
+const ROW_YIELD_INTERVAL = 2000
+const STREAM_WORKBOOK_OPTIONS = {
+  sharedStrings: 'cache' as const,
+  hyperlinks: 'ignore' as const,
+  styles: 'ignore' as const,
+  worksheets: 'emit' as const
+}
 
 const LOAN_COLUMNS = {
   applicantName: 3, // C 列
@@ -79,34 +88,10 @@ export function parseWorkbook(
   const loanRows: LoanRowRecord[] = []
   for (let rowIndex = options.loanDataStartRow; rowIndex <= endRow; rowIndex++) {
     const row = loanWorksheet.getRow(rowIndex)
-    if (!row.hasValues) continue
-
-    const actualLoanDate = parseExcelDate(row.getCell(LOAN_COLUMNS.actualLoanDate).value)
-    const industry = normalizeString(row.getCell(LOAN_COLUMNS.industry).value)
-    const loanAmount = toNumber(row.getCell(LOAN_COLUMNS.loanAmount).value)
-    const arAssignedAmount = toNumber(row.getCell(LOAN_COLUMNS.arAssignedAmount).value)
-    const applicantName = normalizeString(row.getCell(LOAN_COLUMNS.applicantName).value)
-    const contractId = normalizeString(row.getCell(LOAN_COLUMNS.contractId).value)
-
-    if (
-      !actualLoanDate &&
-      !industry &&
-      !loanAmount &&
-      !arAssignedAmount &&
-      !applicantName &&
-      !contractId
-    ) {
-      continue
+    const parsed = extractLoanRow(row)
+    if (parsed) {
+      loanRows.push(parsed)
     }
-
-    loanRows.push({
-      actualLoanDate,
-      industry,
-      loanAmount,
-      arAssignedAmount,
-      applicantName,
-      contractId
-    })
   }
 
   console.log(`[month1carbone] 已解析放款明细 ${loanRows.length} 行`)
@@ -116,24 +101,53 @@ export function parseWorkbook(
     throw new Error('[month1carbone] 缺少资产明细数据源')
   }
 
-  const assetWorksheet = resolveWorksheet(
-    assetSource.workbook,
+  const assetTotalTransferAmount = sumAssetTransferAmount(
+    assetSource,
     options.assetSheet,
-    DEFAULT_ASSET_SHEET
+    options.assetDataStartRow
   )
-  if (!assetWorksheet) {
-    throw new Error('[month1carbone] 无法找到资产明细工作表')
+
+  return { loanRows, assetTotalTransferAmount }
+}
+
+export async function streamParseWorkbook(
+  filePath: string,
+  parseOptions?: Month1ParseOptions
+): Promise<Month1ParsedData> {
+  const options = {
+    loanSheet: parseOptions?.loanSheet ?? DEFAULT_LOAN_SHEET,
+    loanDataStartRow: parseOptions?.loanDataStartRow ?? DEFAULT_LOAN_START_ROW,
+    assetSheet: parseOptions?.assetSheet ?? DEFAULT_ASSET_SHEET,
+    assetDataStartRow: parseOptions?.assetDataStartRow ?? DEFAULT_ASSET_START_ROW,
+    maxRows: parseOptions?.maxRows ?? DEFAULT_MAX_ROWS
   }
 
-  let assetTotalTransferAmount = 0
-  const assetEndRow = assetWorksheet.rowCount
-  for (let rowIndex = options.assetDataStartRow; rowIndex <= assetEndRow; rowIndex++) {
-    const row = assetWorksheet.getRow(rowIndex)
-    if (!row.hasValues) continue
-    assetTotalTransferAmount += toNumber(row.getCell(ASSET_COLUMNS.transferAmount).value)
+  console.log('[month1carbone] 开始流式解析放款/资产明细', {
+    filePath,
+    loanSheet: options.loanSheet,
+    assetSheet: options.assetSheet,
+    loanDataStartRow: options.loanDataStartRow,
+    assetDataStartRow: options.assetDataStartRow,
+    maxRows: options.maxRows
+  })
+
+  const assetSource = parseOptions?.extraSources?.[ASSET_SOURCE_ID]
+  if (!assetSource || (!assetSource.workbook && !assetSource.createReader)) {
+    throw new Error('[month1carbone] 缺少资产明细数据源')
   }
 
-  console.log(`[month1carbone] 资产明细 AD 列汇总: ${assetTotalTransferAmount.toFixed(2)} 元`)
+  const loanRows = await collectLoanRowsStreamFromFile(
+    filePath,
+    options.loanSheet,
+    options.loanDataStartRow,
+    options.maxRows
+  )
+
+  const assetTotalTransferAmount = await sumAssetTransferAmountFromSource(
+    assetSource,
+    options.assetSheet,
+    options.assetDataStartRow
+  )
 
   return { loanRows, assetTotalTransferAmount }
 }
@@ -151,6 +165,134 @@ function resolveWorksheet(
     if (target) return target
   }
   return workbook.worksheets[fallbackIndex]
+}
+
+function extractLoanRow(row: Row): LoanRowRecord | null {
+  if (!row.hasValues) {
+    return null
+  }
+
+  const actualLoanDate = parseExcelDate(row.getCell(LOAN_COLUMNS.actualLoanDate).value)
+  const industry = normalizeString(row.getCell(LOAN_COLUMNS.industry).value)
+  const loanAmount = toNumber(row.getCell(LOAN_COLUMNS.loanAmount).value)
+  const arAssignedAmount = toNumber(row.getCell(LOAN_COLUMNS.arAssignedAmount).value)
+  const applicantName = normalizeString(row.getCell(LOAN_COLUMNS.applicantName).value)
+  const contractId = normalizeString(row.getCell(LOAN_COLUMNS.contractId).value)
+
+  if (
+    !actualLoanDate &&
+    !industry &&
+    !loanAmount &&
+    !arAssignedAmount &&
+    !applicantName &&
+    !contractId
+  ) {
+    return null
+  }
+
+  return {
+    actualLoanDate,
+    industry,
+    loanAmount,
+    arAssignedAmount,
+    applicantName,
+    contractId
+  }
+}
+
+function sumAssetTransferAmount(
+  assetSource: ExtraSourceContext,
+  assetSheet: string | number,
+  assetDataStartRow: number
+): number {
+  if (!assetSource.workbook) {
+    throw new Error('[month1carbone] 缺少资产明细数据源')
+  }
+
+  const assetWorksheet = resolveWorksheet(assetSource.workbook, assetSheet, DEFAULT_ASSET_SHEET)
+  if (!assetWorksheet) {
+    throw new Error('[month1carbone] 无法找到资产明细工作表')
+  }
+
+  let total = 0
+  const assetEndRow = assetWorksheet.rowCount
+  for (let rowIndex = assetDataStartRow; rowIndex <= assetEndRow; rowIndex++) {
+    const row = assetWorksheet.getRow(rowIndex)
+    if (!row.hasValues) continue
+    total += toNumber(row.getCell(ASSET_COLUMNS.transferAmount).value)
+  }
+
+  console.log(`[month1carbone] 资产明细 AD 列汇总: ${total.toFixed(2)} 元`)
+  return total
+}
+
+async function sumAssetTransferAmountFromSource(
+  assetSource: ExtraSourceContext,
+  assetSheet: string | number,
+  assetDataStartRow: number
+): Promise<number> {
+  if (assetSource.workbook) {
+    return sumAssetTransferAmount(assetSource, assetSheet, assetDataStartRow)
+  }
+
+  if (assetSource.createReader) {
+    let total = 0
+    await streamWorksheetRows(
+      {
+        readerFactory: assetSource.createReader,
+        sheet: assetSheet,
+        startRow: assetDataStartRow
+      },
+      (row) => {
+        const amount = toNumber((row as Row).getCell(ASSET_COLUMNS.transferAmount).value)
+        total += amount
+      }
+    )
+
+    console.log(`[month1carbone] 资产明细 AD 列流式汇总: ${total.toFixed(2)} 元`)
+    return total
+  }
+
+  throw new Error('[month1carbone] 资产明细数据源未提供可用的访问方式')
+}
+
+async function collectLoanRowsStreamFromFile(
+  filePath: string,
+  sheetRef: string | number,
+  startRow: number,
+  maxRows: number
+): Promise<LoanRowRecord[]> {
+  const rows: LoanRowRecord[] = []
+  await streamWorksheetRows(
+    {
+      readerFactory: () =>
+        new ExcelJS.stream.xlsx.WorkbookReader(filePath, STREAM_WORKBOOK_OPTIONS),
+      sheet: sheetRef,
+      startRow,
+      maxRows,
+      rowYieldInterval: ROW_YIELD_INTERVAL
+    },
+    (row): void | boolean => {
+      const rowData = row as Row
+      if (!rowData.hasValues) {
+        return undefined
+      }
+      const parsed = extractLoanRow(rowData)
+      if (parsed) {
+        rows.push(parsed)
+      }
+      if (rows.length >= maxRows) {
+        return false
+      }
+      return undefined
+    }
+  )
+
+  if (!rows.length) {
+    console.warn('[month1carbone] 流式放款明细解析结果为空')
+  }
+
+  return rows
 }
 
 function buildReportData(parsedData: unknown, userInput?: Month1UserInput) {
@@ -506,5 +648,6 @@ export const month1carboneTemplate: TemplateDefinition<Month1UserInput> = {
     `.trim()
   },
   parser: parseWorkbook,
+  streamParser: streamParseWorkbook,
   builder: buildReportData
 }

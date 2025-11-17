@@ -1,4 +1,6 @@
-import type { Workbook } from 'exceljs'
+import ExcelJS from 'exceljs'
+import type { Workbook, Row } from 'exceljs'
+import { setImmediate as setImmediatePromise } from 'node:timers/promises'
 import type { TemplateDefinition, ParseOptions, FormCreateRule } from './types'
 
 interface LocalStatisticsParseOptions extends ParseOptions {
@@ -46,6 +48,13 @@ const DEFAULT_PARSE_OPTIONS = {
   dataStartRow: 2,
   maxRows: 200000
 }
+const ROW_YIELD_INTERVAL = 2000
+const STREAM_WORKBOOK_OPTIONS = {
+  sharedStrings: 'cache' as const,
+  hyperlinks: 'ignore' as const,
+  styles: 'ignore' as const,
+  worksheets: 'emit' as const
+}
 
 export function parseWorkbook(
   workbook: Workbook,
@@ -71,19 +80,99 @@ export function parseWorkbook(
 
   for (let rowIndex = options.dataStartRow; rowIndex <= endRow; rowIndex++) {
     const row = worksheet.getRow(rowIndex)
-    if (!row.hasValues) continue
-
-    rows.push({
-      customerName: row.getCell(COLUMN_INDEX.customerName).value,
-      enterpriseScale: row.getCell(COLUMN_INDEX.enterpriseScale).value,
-      contractId: row.getCell(COLUMN_INDEX.contractId).value,
-      actualLoanDate: row.getCell(COLUMN_INDEX.actualLoanDate).value,
-      loanAmount: row.getCell(COLUMN_INDEX.loanAmount).value
-    })
+    const parsed = extractRow(row)
+    if (parsed) {
+      rows.push(parsed)
+    }
   }
 
   console.log(`[localStatistics] 解析完成，共解析 ${rows.length} 行`)
   return { rows }
+}
+
+export async function streamParseWorkbook(
+  filePath: string,
+  parseOptions?: LocalStatisticsParseOptions
+): Promise<LocalStatisticsParsedData> {
+  const options = {
+    sheet: parseOptions?.sheet ?? DEFAULT_PARSE_OPTIONS.sheet,
+    dataStartRow: parseOptions?.dataStartRow ?? DEFAULT_PARSE_OPTIONS.dataStartRow,
+    maxRows: parseOptions?.maxRows ?? DEFAULT_PARSE_OPTIONS.maxRows
+  }
+
+  console.log('[localStatistics] 开始流式解析', {
+    filePath,
+    sheet: options.sheet,
+    dataStartRow: options.dataStartRow,
+    maxRows: options.maxRows
+  })
+
+  const workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(filePath, STREAM_WORKBOOK_OPTIONS)
+  const rows: LocalStatisticsParsedRow[] = []
+
+  const targetSheetName = typeof options.sheet === 'string' ? options.sheet : null
+  const targetSheetIndex = typeof options.sheet === 'number' ? options.sheet : null
+  const maxRowIndex = options.dataStartRow + options.maxRows - 1
+  let sheetIndex = 0
+  let processedSheet = false
+
+  for await (const worksheetReader of workbookReader) {
+    const sheetName = (worksheetReader as any).name
+    const isTarget =
+      (targetSheetName && sheetName === targetSheetName) ||
+      (targetSheetIndex !== null && sheetIndex === targetSheetIndex)
+
+    if (!isTarget) {
+      sheetIndex++
+      continue
+    }
+
+    let rowIndex = 0
+    for await (const row of worksheetReader) {
+      rowIndex++
+      if (rowIndex < options.dataStartRow) {
+        continue
+      }
+      if (rowIndex > maxRowIndex) {
+        break
+      }
+
+      const parsed = extractRow(row as Row)
+      if (parsed) {
+        rows.push(parsed)
+      }
+
+      if (rowIndex % ROW_YIELD_INTERVAL === 0) {
+        await setImmediatePromise()
+      }
+    }
+
+    processedSheet = true
+    console.log(
+      `[localStatistics] 流式解析完成，共解析 ${rows.length} 行 (sheet=${sheetName ?? `#${sheetIndex}`})`
+    )
+    break
+  }
+
+  if (!processedSheet) {
+    throw new Error(`[localStatistics] 无法找到工作表: ${options.sheet}`)
+  }
+
+  return { rows }
+}
+
+function extractRow(row: Row): LocalStatisticsParsedRow | null {
+  if (!row.hasValues) {
+    return null
+  }
+
+  return {
+    customerName: row.getCell(COLUMN_INDEX.customerName).value,
+    enterpriseScale: row.getCell(COLUMN_INDEX.enterpriseScale).value,
+    contractId: row.getCell(COLUMN_INDEX.contractId).value,
+    actualLoanDate: row.getCell(COLUMN_INDEX.actualLoanDate).value,
+    loanAmount: row.getCell(COLUMN_INDEX.loanAmount).value
+  }
 }
 
 function parseExcelDate(value: unknown): Date | null {
@@ -313,5 +402,6 @@ export const localStatisticsTemplate: TemplateDefinition<LocalStatisticsInput> =
     `.trim()
   },
   parser: parseWorkbook,
+  streamParser: streamParseWorkbook,
   builder: buildReportData
 }

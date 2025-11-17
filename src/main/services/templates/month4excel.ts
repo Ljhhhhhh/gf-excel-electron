@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
-import type { Workbook, Cell } from 'exceljs'
+import type { Workbook, Cell, Row } from 'exceljs'
+import { setImmediate as setImmediatePromise } from 'node:timers/promises'
 import type { TemplateDefinition, ParseOptions, FormCreateRule } from './types'
 
 // ========== 类型定义 ==========
@@ -25,6 +26,14 @@ interface Month4UserInput {
   year: number
   month: number
 }
+
+const STREAM_WORKBOOK_OPTIONS = {
+  sharedStrings: 'cache' as const,
+  hyperlinks: 'ignore' as const,
+  styles: 'ignore' as const,
+  worksheets: 'emit' as const
+}
+const ROW_YIELD_INTERVAL = 2000
 
 // ========== 解析器实现 ==========
 
@@ -52,18 +61,97 @@ export function parseWorkbook(
 
   for (let rowIndex = options.dataStartRow; rowIndex <= endRow; rowIndex++) {
     const row = worksheet.getRow(rowIndex)
-    if (!row.hasValues) continue
-
-    rows.push({
-      actualLoanDate: row.getCell(16).value, // P 列
-      industry: row.getCell(27).value, // AA 列
-      businessLevel: row.getCell(31).value, // AE 列
-      loanAmount: row.getCell(49).value // AW 列
-    })
+    const parsed = extractDataRow(row)
+    if (parsed) {
+      rows.push(parsed)
+    }
   }
 
   console.log(`[month4excel] 解析完成，共读取 ${rows.length} 行数据`)
   return { rows }
+}
+
+export async function streamParseWorkbook(
+  filePath: string,
+  parseOptions?: Month4ParseOptions
+): Promise<Month4ParsedData> {
+  const options = {
+    sheet: parseOptions?.sheet ?? 0,
+    dataStartRow: parseOptions?.dataStartRow ?? 2,
+    maxRows: parseOptions?.maxRows ?? 100000
+  }
+
+  console.log('[month4excel] 开始流式解析', {
+    filePath,
+    sheet: options.sheet,
+    dataStartRow: options.dataStartRow,
+    maxRows: options.maxRows
+  })
+
+  const workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(filePath, STREAM_WORKBOOK_OPTIONS)
+  const rows: Month4ParsedData['rows'] = []
+  const targetSheetName = typeof options.sheet === 'string' ? options.sheet : null
+  const targetSheetIndex = typeof options.sheet === 'number' ? options.sheet : null
+  const maxRowIndex = options.dataStartRow + options.maxRows - 1
+  let sheetIndex = 0
+  let processedSheet = false
+
+  for await (const worksheetReader of workbookReader) {
+    const sheetName = (worksheetReader as any).name
+    const isTarget =
+      (targetSheetName && sheetName === targetSheetName) ||
+      (targetSheetIndex !== null && sheetIndex === targetSheetIndex)
+
+    if (!isTarget) {
+      sheetIndex++
+      continue
+    }
+
+    let rowIndex = 0
+    for await (const row of worksheetReader) {
+      rowIndex++
+      if (rowIndex < options.dataStartRow) {
+        continue
+      }
+      if (rowIndex > maxRowIndex) {
+        break
+      }
+
+      const parsed = extractDataRow(row as Row)
+      if (parsed) {
+        rows.push(parsed)
+      }
+
+      if (rowIndex % ROW_YIELD_INTERVAL === 0) {
+        await setImmediatePromise()
+      }
+    }
+
+    processedSheet = true
+    console.log(
+      `[month4excel] 流式解析完成，共读取 ${rows.length} 行 (sheet=${sheetName ?? `#${sheetIndex}`})`
+    )
+    break
+  }
+
+  if (!processedSheet) {
+    throw new Error(`[month4excel] 无法找到工作表: ${options.sheet}`)
+  }
+
+  return { rows }
+}
+
+function extractDataRow(row: Row): Month4ParsedRow | null {
+  if (!row.hasValues) {
+    return null
+  }
+
+  return {
+    actualLoanDate: row.getCell(16).value, // P 列
+    industry: row.getCell(27).value, // AA 列
+    businessLevel: row.getCell(31).value, // AE 列
+    loanAmount: row.getCell(49).value // AW 列
+  }
 }
 
 // ========== 工具函数 ==========
@@ -353,7 +441,8 @@ export const month4excelTemplate: TemplateDefinition<Month4UserInput> = {
     ext: 'xlsx',
     supportedSourceExts: ['xlsx'],
     description:
-      '根据指定年月统计不同业务等级（一级-三级）在基建工程、医药医疗、再保理中的放款及占比'
+      '根据指定年月统计不同业务等级（一级-三级）在基建工程、医药医疗、再保理中的放款及占比',
+    sourceLabel: '放款明细表'
   },
   engine: 'exceljs',
   inputRule: {
@@ -388,5 +477,6 @@ export const month4excelTemplate: TemplateDefinition<Month4UserInput> = {
     `.trim()
   },
   parser: parseWorkbook,
+  streamParser: streamParseWorkbook,
   excelRenderer: renderWithExcelJS
 }

@@ -10,7 +10,8 @@ import type {
   ExcelToDataResult,
   ParseOptions,
   SourceMeta,
-  ExtraSourceContext
+  ExtraSourceContext,
+  TemplateSourceRequirement
 } from './templates/types'
 import type { Warning } from './errors'
 import { getTemplate } from './templates/registry'
@@ -29,6 +30,102 @@ const log = createLogger('excelToData')
  * 文件大小限制（MB）
  */
 const FILE_SIZE_LIMIT_MB = 100
+
+/**
+ * 流式工作簿选项
+ */
+const STREAM_WORKBOOK_OPTIONS: ExcelJS.stream.xlsx.WorkbookStreamReaderOptions = {
+  sharedStrings: 'cache',
+  hyperlinks: 'ignore',
+  styles: 'ignore',
+  worksheets: 'emit'
+}
+
+interface ResolveExtraSourceContextInput {
+  requirement: TemplateSourceRequirement
+  providedPath: string
+  templateExts: string[]
+  supportsStreaming: boolean
+}
+
+async function resolveExtraSourceContext(
+  input: ResolveExtraSourceContextInput
+): Promise<ExtraSourceContext> {
+  const { requirement, providedPath, templateExts, supportsStreaming } = input
+  if (!fs.existsSync(providedPath)) {
+    throw new UnsupportedFileError(providedPath, '文件不存在')
+  }
+
+  const ext = getFileExtension(providedPath)
+  const allowedExts = requirement.supportedExts ?? templateExts
+  if (!allowedExts.includes(ext)) {
+    throw new UnsupportedFileError(
+      providedPath,
+      `不支持的扩展名: ${ext}，仅支持: ${allowedExts.join(', ')}`
+    )
+  }
+
+  const size = getFileSize(providedPath)
+  if (size > FILE_SIZE_LIMIT_MB * 1024 * 1024) {
+    throw new ExcelFileTooLargeError(providedPath, size, FILE_SIZE_LIMIT_MB)
+  }
+
+  const desiredStrategy = requirement.loadStrategy ?? 'auto'
+  let shouldLoadWorkbook = desiredStrategy === 'workbook'
+  let shouldProvideStream = desiredStrategy === 'stream'
+
+  if (desiredStrategy === 'auto') {
+    shouldProvideStream = supportsStreaming
+    shouldLoadWorkbook = !supportsStreaming
+  } else if (desiredStrategy === 'stream' && !supportsStreaming) {
+    log.warn('额外数据源请求流式解析但模板未启用流式解析，回退为 workbook 模式', {
+      requirementId: requirement.id
+    })
+    shouldProvideStream = false
+    shouldLoadWorkbook = true
+  }
+
+  if (!shouldProvideStream && !shouldLoadWorkbook) {
+    shouldLoadWorkbook = true
+  }
+
+  let workbook: ExcelJS.Workbook | undefined
+  let sheets: string[] = []
+  if (shouldLoadWorkbook) {
+    workbook = new ExcelJS.Workbook()
+    try {
+      await workbook.xlsx.readFile(providedPath)
+      sheets = workbook.worksheets.map((ws) => ws.name)
+    } catch (error) {
+      throw new ExcelParseError(providedPath, error)
+    }
+    log.info('额外数据源已加载 Workbook', {
+      requirementId: requirement.id,
+      label: requirement.label,
+      sheets
+    })
+  }
+
+  const createReader = shouldProvideStream
+    ? () => new ExcelJS.stream.xlsx.WorkbookReader(providedPath, STREAM_WORKBOOK_OPTIONS)
+    : undefined
+
+  const loadMode =
+    shouldLoadWorkbook && shouldProvideStream
+      ? 'hybrid'
+      : shouldLoadWorkbook
+        ? 'workbook'
+        : 'stream'
+
+  return {
+    path: providedPath,
+    size,
+    sheets,
+    workbook,
+    createReader,
+    loadMode
+  }
+}
 
 /**
  * Excel → 数据转换
@@ -67,6 +164,11 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
 
   // 5. 处理额外数据源
   // 如果模板声明了额外数据源，这里逐个解析与校验，并将 workbook 句柄注入 parseOptions
+  // 6. 检查模板是否支持流式解析
+  const supportsStreaming =
+    'streamParser' in template && typeof template.streamParser === 'function'
+
+  // 7. 处理额外数据源（根据流式模式和加载策略灵活加载）
   const extraSourceConfigs = template.meta.extraSources ?? []
   const resolvedExtraSources: Record<string, ExtraSourceContext> = {}
   for (const requirement of extraSourceConfigs) {
@@ -79,47 +181,13 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
       continue
     }
 
-    if (!fs.existsSync(providedPath)) {
-      throw new UnsupportedFileError(providedPath, '文件不存在')
-    }
-
-    const ext = getFileExtension(providedPath)
-    const allowedExts = requirement.supportedExts ?? template.meta.supportedSourceExts
-    if (!allowedExts.includes(ext)) {
-      throw new UnsupportedFileError(
-        providedPath,
-        `不支持的扩展名: ${ext}，仅支持: ${allowedExts.join(', ')}`
-      )
-    }
-
-    const size = getFileSize(providedPath)
-    if (size > FILE_SIZE_LIMIT_MB * 1024 * 1024) {
-      throw new ExcelFileTooLargeError(providedPath, size, FILE_SIZE_LIMIT_MB)
-    }
-
-    const workbook = new ExcelJS.Workbook()
-    try {
-      await workbook.xlsx.readFile(providedPath)
-      log.info('额外数据源已加载', {
-        requirementId: requirement.id,
-        label: requirement.label,
-        sheets: workbook.worksheets.map((ws) => ws.name)
-      })
-    } catch (error) {
-      throw new ExcelParseError(providedPath, error)
-    }
-
-    resolvedExtraSources[requirement.id] = {
-      path: providedPath,
-      workbook,
-      size,
-      sheets: workbook.worksheets.map((ws) => ws.name)
-    }
+    resolvedExtraSources[requirement.id] = await resolveExtraSourceContext({
+      requirement,
+      providedPath,
+      templateExts: template.meta.supportedSourceExts,
+      supportsStreaming
+    })
   }
-
-  // 6. 检查模板是否支持流式解析
-  const supportsStreaming =
-    'streamParser' in template && typeof template.streamParser === 'function'
 
   let workbook: ExcelJS.Workbook
   let parsedData: unknown

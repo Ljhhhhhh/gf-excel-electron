@@ -1,7 +1,8 @@
 import ExcelJS from 'exceljs'
 import type { Workbook, Row, CellValue, Worksheet } from 'exceljs'
 import { setImmediate as setImmediatePromise } from 'node:timers/promises'
-import type { TemplateDefinition, ParseOptions, FormCreateRule } from './types'
+import type { TemplateDefinition, ParseOptions, FormCreateRule, ExtraSourceContext } from './types'
+import { streamWorksheetRows } from './streamUtils'
 
 interface BankCommonParseOptions extends ParseOptions {
   ledgerSheet?: string | number
@@ -84,20 +85,16 @@ export async function parseWorkbook(
   // 通过 excelToData 注入的额外数据源（放款明细）
   // 流式模式同样依赖预先载入的放款明细 workbook
   const extraSource = parseOptions?.extraSources?.[LOAN_SOURCE_ID]
-  if (!extraSource) {
+  if (!extraSource?.workbook) {
     throw new Error('[bankCommon] 缺少放款明细数据源')
   }
 
-  const loanSheet =
-    typeof options.loanSheet === 'number'
-      ? extraSource.workbook.worksheets[options.loanSheet]
-      : extraSource.workbook.getWorksheet(options.loanSheet)
-  if (!loanSheet) {
-    throw new Error(`[bankCommon] 未找到放款明细工作表: ${options.loanSheet}`)
-  }
-
   const ledgerRows = collectLedgerRowsFromWorksheet(ledgerSheet, options.ledgerDataStartRow)
-  const loanRows = collectLoanRowsFromWorksheet(loanSheet, options.loanDataStartRow)
+  const loanRows = await collectLoanRowsFromSource(
+    extraSource,
+    options.loanSheet,
+    options.loanDataStartRow
+  )
   console.log(`[bankCommon] 解析完成，台账行: ${ledgerRows.length}，放款明细行: ${loanRows.length}`)
   return { ledgerRows, loanRows }
 }
@@ -118,15 +115,11 @@ export async function streamParseWorkbook(
     throw new Error('[bankCommon] 缺少放款明细数据源')
   }
 
-  const loanSheet =
-    typeof options.loanSheet === 'number'
-      ? extraSource.workbook.worksheets[options.loanSheet]
-      : extraSource.workbook.getWorksheet(options.loanSheet)
-  if (!loanSheet) {
-    throw new Error(`[bankCommon] 未找到放款明细工作表: ${options.loanSheet}`)
-  }
-
-  const loanRows = collectLoanRowsFromWorksheet(loanSheet, options.loanDataStartRow)
+  const loanRows = await collectLoanRowsFromSource(
+    extraSource,
+    options.loanSheet,
+    options.loanDataStartRow
+  )
   const ledgerRows = await collectLedgerRowsStream(filePath, options)
   console.log(
     `[bankCommon] 流式解析完成，台账行: ${ledgerRows.length}，放款明细行: ${loanRows.length}`
@@ -197,6 +190,51 @@ function collectLedgerRowsFromWorksheet(worksheet: Worksheet, startRow: number):
     }
   }
   return rows
+}
+
+async function collectLoanRowsFromSource(
+  extraSource: ExtraSourceContext,
+  sheetRef: string | number,
+  startRow: number
+): Promise<LoanRowRecord[]> {
+  if (extraSource.workbook) {
+    const loanSheet =
+      typeof sheetRef === 'number'
+        ? extraSource.workbook.worksheets[sheetRef]
+        : extraSource.workbook.getWorksheet(sheetRef)
+    if (!loanSheet) {
+      throw new Error(`[bankCommon] 未找到放款明细工作表: ${sheetRef}`)
+    }
+    return collectLoanRowsFromWorksheet(loanSheet, startRow)
+  }
+
+  if (extraSource.createReader) {
+    const rows: LoanRowRecord[] = []
+    await streamWorksheetRows(
+      {
+        readerFactory: extraSource.createReader,
+        sheet: sheetRef,
+        startRow,
+        rowYieldInterval: ROW_YIELD_INTERVAL
+      },
+      (row) => {
+        const rowReader = row as Row
+        if (!rowReader.hasValues) {
+          return
+        }
+        const loanDate = parseDateValue(rowReader.getCell(LOAN_COLS.loanDate).value)
+        const amount = toNumber(rowReader.getCell(LOAN_COLS.amount).value)
+        if (loanDate || (amount !== null && amount !== 0)) {
+          rows.push({ loanDate, amount })
+        }
+      }
+    )
+
+    console.log(`[bankCommon] 流式解析放款明细完成，累计 ${rows.length} 行`)
+    return rows
+  }
+
+  throw new Error('[bankCommon] 放款明细数据源未提供可用的访问方式')
 }
 
 function collectLoanRowsFromWorksheet(worksheet: Worksheet, startRow: number): LoanRowRecord[] {

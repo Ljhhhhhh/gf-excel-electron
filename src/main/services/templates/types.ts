@@ -2,6 +2,7 @@
  * 模板系统核心类型定义
  */
 
+import type ExcelJS from 'exceljs'
 import type { Workbook } from 'exceljs'
 import type { Warning } from '../errors'
 
@@ -94,6 +95,13 @@ export interface TemplateSourceRequirement {
   description?: string
   /** 支持的扩展名（默认与主数据源一致） */
   supportedExts?: string[]
+  /**
+   * 加载策略
+   * - auto: 根据模板是否启用 streamParser 自动选择
+   * - workbook: 强制完整加载 Workbook
+   * - stream: 若可用则仅提供流式 reader
+   */
+  loadStrategy?: 'auto' | 'workbook' | 'stream'
 }
 
 export interface TemplateMeta {
@@ -125,12 +133,19 @@ export interface TemplateMeta {
 export interface ExtraSourceContext {
   /** 文件路径 */
   path: string
-  /** ExcelJS Workbook 实例 */
-  workbook: Workbook
   /** 文件大小（字节） */
   size: number
   /** 工作表名称列表 */
   sheets: string[]
+  /** 已加载的 ExcelJS Workbook（仅当 loadMode 包含 workbook 时提供） */
+  workbook?: Workbook
+  /**
+   * 创建新的 WorkbookReader（仅当 loadMode 包含 stream 时提供）
+   * 每次调用都应返回独立的 reader，用于模板多次遍历
+   */
+  createReader?: () => ExcelJS.stream.xlsx.WorkbookReader
+  /** 实际加载模式，未显式设置时默认为 'workbook' */
+  loadMode?: 'workbook' | 'stream' | 'hybrid'
 }
 
 export interface ParseOptions {
