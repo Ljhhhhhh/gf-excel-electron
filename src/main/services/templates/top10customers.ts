@@ -444,7 +444,16 @@ async function renderWithExcelJS(
   titleCell.font = { bold: true, size: 14 }
   worksheet.getRow(1).height = 28
 
-  const headers = ['客户名称', '行业', '地区', '发放金额', '占比', '期限（月）', '余额', '是否有追']
+  const headers = [
+    '客户名称',
+    '行业',
+    '地区',
+    '发放金额（万元）',
+    '占比',
+    '期限（月）',
+    '余额（万元）',
+    '是否有追'
+  ]
   const headerRow = worksheet.getRow(2)
   headerRow.height = 22
   headers.forEach((header, idx) => {
@@ -477,7 +486,7 @@ async function renderWithExcelJS(
     row.getCell(3).value = customerInfo?.region ?? ''
 
     const principalCell = row.getCell(4)
-    principalCell.value = entry.principal ?? 0
+    principalCell.value = (entry.principal ?? 0) / 10000
     principalCell.numFmt = '#,##0.00'
 
     const ratioCell = row.getCell(5)
@@ -487,7 +496,7 @@ async function renderWithExcelJS(
     row.getCell(6).value = formatTenor(entry.tenors)
 
     const balanceCell = row.getCell(7)
-    balanceCell.value = entry.balance ?? 0
+    balanceCell.value = (entry.balance ?? 0) / 10000
     balanceCell.numFmt = '#,##0.00'
 
     row.getCell(8).value = formatRecourse(entry.recourseStates)

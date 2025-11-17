@@ -494,7 +494,7 @@ const inputRules: FormCreateRule[] = [
 export const month2exceljsTemplate: TemplateDefinition<Month2UserInput> = {
   meta: {
     id: 'month2exceljs',
-    name: '月报2模板',
+    name: '月报2',
     ext: 'xlsx',
     supportedSourceExts: ['xlsx'],
     description: '统计从1月到指定月份的三个行业（基建工程、医药医疗、再保理）新增放款数据',

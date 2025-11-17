@@ -25,14 +25,11 @@ interface LocalStatisticsInput {
   period: string
 }
 
-type SpanLabel = '月' | '季' | '年'
-
 interface ParsedPeriod {
   period: string
-  span: SpanLabel
   queryFormat: string
   year: number
-  months?: number[]
+  months: number[]
 }
 
 const COLUMN_INDEX = {
@@ -224,65 +221,27 @@ function parsePeriodInput(input: string | undefined): ParsedPeriod {
     throw new Error('统计期间不能为空')
   }
 
-  const upper = raw.toUpperCase()
-
-  const monthMatch = upper.match(/^(\d{4})(0[1-9]|1[0-2])$/)
-  if (monthMatch) {
-    const year = Number(monthMatch[1])
-    const month = Number(monthMatch[2])
-    return {
-      period: raw,
-      span: '月',
-      queryFormat: `${year}年${month}月`,
-      year,
-      months: [month]
-    }
+  const normalized = raw.toUpperCase()
+  const match = normalized.match(/^(\d{4})(0[1-9]|1[0-2])$/)
+  if (!match) {
+    throw new Error('统计期间格式不正确，请输入 YYYYMM')
   }
 
-  const quarterMatch = upper.match(/^(\d{4})Q([1-4])$/)
-  if (quarterMatch) {
-    const year = Number(quarterMatch[1])
-    const quarter = Number(quarterMatch[2]) as 1 | 2 | 3 | 4
-    const quarterLabels: Record<1 | 2 | 3 | 4, string> = {
-      1: '第一季度',
-      2: '第二季度',
-      3: '第三季度',
-      4: '第四季度'
-    }
-    const quarterMonths: Record<1 | 2 | 3 | 4, number[]> = {
-      1: [1, 2, 3],
-      2: [4, 5, 6],
-      3: [7, 8, 9],
-      4: [10, 11, 12]
-    }
-    return {
-      period: upper,
-      span: '季',
-      queryFormat: `${year}年${quarterLabels[quarter]}`,
-      year,
-      months: quarterMonths[quarter]
-    }
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const months = Array.from({ length: month }, (_, idx) => idx + 1)
+  return {
+    period: raw,
+    queryFormat: `${year}年${month}月`,
+    year,
+    months
   }
-
-  const yearMatch = upper.match(/^\d{4}$/)
-  if (yearMatch) {
-    const year = Number(yearMatch[0])
-    return {
-      period: upper,
-      span: '年',
-      queryFormat: `${year}年`,
-      year
-    }
-  }
-
-  throw new Error('统计期间格式不正确，请输入 YYYYMM / YYYYQn / YYYY')
 }
 
 function isWithinPeriod(dateValue: unknown, period: ParsedPeriod): boolean {
   const date = parseExcelDate(dateValue)
   if (!date) return false
   if (date.getFullYear() !== period.year) return false
-  if (!period.months) return true
   return period.months.includes(date.getMonth() + 1)
 }
 
@@ -335,7 +294,6 @@ function buildReportData(parsedData: unknown, userInput?: LocalStatisticsInput) 
 
   return {
     period: parsedPeriod.period,
-    span: parsedPeriod.span,
     queryFormat: parsedPeriod.queryFormat,
     summary: {
       total_business_amount: totalBusinessAmount,
@@ -357,13 +315,13 @@ const inputRules: FormCreateRule[] = [
     title: '统计期间',
     value: '',
     props: {
-      placeholder: '例如 202501 / 2025Q1 / 2025'
+      placeholder: '例如 202509 表示统计 2025 年 1 月至 9 月'
     },
     validate: [
       { required: true, message: '请输入统计期间', trigger: 'blur' },
       {
-        pattern: '^\\d{4}((0[1-9]|1[0-2])|([Qq][1-4]))?$',
-        message: '格式需为 YYYYMM / YYYYQn / YYYY',
+        pattern: '^\\d{4}(0[1-9]|1[0-2])$',
+        message: '格式需为 YYYYMM，例如 202509',
         trigger: 'blur'
       }
     ]
@@ -377,7 +335,7 @@ export const localStatisticsTemplate: TemplateDefinition<LocalStatisticsInput> =
     filename: 'localStatistics.xlsx',
     ext: 'xlsx',
     supportedSourceExts: ['xlsx'],
-    description: '根据 period 条件统计总表与保理表关键指标，支持月度 / 季度 / 年度的快速切换',
+    description: '根据输入的年月统计当年 1 月至该月份的关键指标',
     sourceLabel: '放款明细表（xlsx）'
   },
   engine: 'carbone',
@@ -390,15 +348,12 @@ export const localStatisticsTemplate: TemplateDefinition<LocalStatisticsInput> =
       resetBtn: false
     },
     example: {
-      period: '2025Q1'
+      period: '202509'
     },
     description: `
 ### 统计期间填写说明
-- **月度**：输入 \`YYYYMM\`，例如 \`202501\` 表示 2025 年 1 月。
-- **季度**：输入 \`YYYYQn\`，例如 \`2025Q1\` 表示 2025 年第 1 季度。
-- **年度**：输入 \`YYYY\`，例如 \`2025\` 表示 2025 年全年。
-
-系统会根据 period 推导 \`span\`（月/季/年）与 \`queryFormat\`（中文展示），并统一按 P 列日期所属期间筛选。
+- 输入 \`YYYYMM\`，例如 \`202509\` 表示 2025 年 1 月至 9 月的年初累计。
+- 系统会自动将统计范围扩展为“当年 1 月”到“输入月份”之间（含输入月份），并按 P 列日期筛选数据。
     `.trim()
   },
   parser: parseWorkbook,

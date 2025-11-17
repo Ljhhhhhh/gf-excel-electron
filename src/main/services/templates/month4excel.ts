@@ -437,7 +437,7 @@ const inputRules: FormCreateRule[] = [
 export const month4excelTemplate: TemplateDefinition<Month4UserInput> = {
   meta: {
     id: 'month4excel',
-    name: '月报4模板',
+    name: '月报4',
     ext: 'xlsx',
     supportedSourceExts: ['xlsx'],
     description:

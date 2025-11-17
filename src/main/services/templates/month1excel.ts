@@ -184,7 +184,7 @@ async function renderWithExcelJS(
 export const month1excelTemplate: TemplateDefinition<Month1ExcelUserInput> = {
   meta: {
     id: 'month1excel',
-    name: '月报1模板（ExcelJS）',
+    name: '月报1',
     ext: 'xlsx',
     supportedSourceExts: ['xlsx'],
     description: '基于月报1统计逻辑的段落式文字模板，由 ExcelJS 直接生成',
