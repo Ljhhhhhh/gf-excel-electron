@@ -109,6 +109,54 @@ const FACTORING_REPAY_SOURCE_ID = 'factoringRepay'
 const REFACTORING_REPAY_SOURCE_ID = 'refactoringRepay'
 const LEDGER_SOURCE_ID = 'ledgerWorkbook'
 
+/** 固定列宽配置（基于原模板文件分析得出） */
+const FIXED_COLUMN_WIDTHS: Record<string, number> = {
+  A: 5.13, // 序号
+  B: 11.38, // 即期逾期预警
+  C: 9.13, // 资产安排
+  D: 11.38, // 业务来源
+  E: 9.13, // 风险等级
+  F: 11.38, // 业务类型
+  G: 20.5, // 资产编号
+  H: 32.5, // 保理/再保理申请人名称
+  I: 50, // 基础交易对手方名称
+  J: 32.5, // 确权方名称
+  K: 32.5, // 基建项目名称
+  L: 11.38, // 行业类型
+  M: 13.5, // 应收账款余额
+  N: 13.5, // 融资金额
+  O: 25, // 资产标识
+  P: 13.5, // 融资期限（天）
+  Q: 20.5, // 融资申请号
+  R: 13.5, // 融资利率
+  S: 9.13, // 业务性质
+  T: 13.5, // 融资起始日
+  U: 13.5, // 融资到期日
+  V: 13.5, // 应还款日期
+  W: 13.5, // 放款日期
+  X: 13.5, // 账期（天）
+  Y: 13.5, // 预计还款日期
+  Z: 13.5, // 应收账款到期日
+  AA: 13.5, // 实际还款日期
+  AB: 13.5, // 融资天数
+  AC: 13.5, // 融资利息
+  AD: 13.5, // 罚息
+  AE: 13.5, // 还款日期
+  AF: 13.5, // 提前还款天数
+  AG: 13.5, // 收款金额（本金）
+  AH: 13.5, // 收款金额（全部）
+  AI: 13.5, // 回款金额
+  AJ: 13.5, // 回款日期
+  AK: 9.13, // 回款类型
+  AL: 13.5, // 实际融资天数
+  AM: 13.5, // 实际融资利息
+  AN: 13.5, // 实际罚息
+  AO: 13.5, // 实付本金
+  AP: 13.5, // 实付利息
+  AQ: 13.5, // 实付罚息
+  AR: 25 // 交易银行流水号
+}
+
 /** 放款记录输出列 */
 const LOAN_OUTPUT_COLUMNS = [
   'A',
@@ -809,6 +857,11 @@ async function streamCopyAndAppend(options: StreamCopyOptions): Promise<void> {
 
       const outputSheet = writer.addWorksheet(sheetName || `Sheet${sheetIndex + 1}`)
 
+      // 应用固定列宽配置（仅目标工作表）
+      if (isTargetSheet) {
+        applyFixedColumnWidths(outputSheet)
+      }
+
       if (isTargetSheet) {
         await processTargetSheet(
           worksheetReader,
@@ -858,12 +911,18 @@ async function processTargetSheet(
     rowNumber++
     const rowData = row as Row
 
-    const newRow = outputSheet.addRow(rowData.values)
+    // 创建新行（先不传值）
+    const newRow = outputSheet.addRow([])
     newRow.height = rowData.height
 
-    // 复制样式
-    rowData.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+    // 逐个单元格复制值和样式
+    rowData.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       const newCell = newRow.getCell(colNumber)
+
+      // 正确处理单元格值（特别是公式）
+      copyCellValue(cell, newCell)
+
+      // 复制样式
       if (cell.style && Object.keys(cell.style).length > 0) {
         newCell.style = cell.style
       }
@@ -938,12 +997,18 @@ async function copySheetRows(worksheetReader: any, outputSheet: ExcelJS.Workshee
 
   for await (const row of worksheetReader) {
     const rowData = row as Row
-    const newRow = outputSheet.addRow(rowData.values)
+    // 创建新行（先不传值）
+    const newRow = outputSheet.addRow([])
     newRow.height = rowData.height
 
-    // 复制样式
-    rowData.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+    // 逐个单元格复制值和样式
+    rowData.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       const newCell = newRow.getCell(colNumber)
+
+      // 正确处理单元格值（特别是公式）
+      copyCellValue(cell, newCell)
+
+      // 复制样式
       if (cell.style && Object.keys(cell.style).length > 0) {
         newCell.style = cell.style
       }
@@ -1116,6 +1181,46 @@ function columnLetterToNumber(letter: string): number {
     num = num * 26 + (upper.charCodeAt(i) - 64)
   }
   return num
+}
+
+/**
+ * 正确复制单元格值（特别处理公式）
+ */
+function copyCellValue(sourceCell: ExcelJS.Cell, targetCell: ExcelJS.Cell): void {
+  const value = sourceCell.value
+
+  if (value === null || value === undefined) {
+    targetCell.value = null
+    return
+  }
+
+  // 处理公式对象 {formula: string, result: any}
+  if (typeof value === 'object' && value !== null && 'formula' in value) {
+    const formulaObj = value as { formula?: string; result?: any }
+    if (formulaObj.formula) {
+      // 有公式，设置公式
+      targetCell.value = { formula: formulaObj.formula, result: formulaObj.result }
+    } else {
+      // 公式为空，只设置结果值
+      targetCell.value = formulaObj.result ?? null
+    }
+    return
+  }
+
+  // 其他类型直接复制
+  targetCell.value = value
+}
+
+/**
+ * 应用固定列宽配置
+ */
+function applyFixedColumnWidths(sheet: ExcelJS.Worksheet): void {
+  Object.entries(FIXED_COLUMN_WIDTHS).forEach(([colLetter, width]) => {
+    const column = sheet.getColumn(colLetter)
+    if (column) {
+      column.width = width
+    }
+  })
 }
 
 // ========== 输入规则定义 ==========
