@@ -12,6 +12,7 @@ import { bankCommonTemplate } from './bankCommon'
 import { f103FactoringDetailTemplate } from './f103FactoringDetail'
 import { localStatisticsTemplate } from './localStatistics'
 import { month1excelTemplate } from './month1excel'
+import { ledgerDailyTemplate } from './ledgerDaily'
 
 /**
  * 初始化模板系统
@@ -29,6 +30,7 @@ export function initTemplates(): void {
   registerTemplate(bankCommonTemplate)
   registerTemplate(f103FactoringDetailTemplate)
   registerTemplate(localStatisticsTemplate)
+  registerTemplate(ledgerDailyTemplate)
 
   console.log('[Templates] 模板系统初始化完成')
 }

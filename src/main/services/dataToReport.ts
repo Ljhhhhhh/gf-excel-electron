@@ -60,9 +60,16 @@ export async function dataToReport(input: DataToReportInput): Promise<DataToRepo
 
   // 4. 确定输出文件名和路径
   const templateDisplayName = template.meta.name || template.meta.id || templateId
-  const finalReportName = reportName
+  const defaultReportName = reportName
     ? sanitizeFilename(reportName)
     : generateReportName(templateDisplayName, template.meta.ext)
+  const resolvedReportName =
+    template.resolveReportName?.({
+      defaultName: defaultReportName,
+      parsedData,
+      userInput
+    }) ?? defaultReportName
+  const finalReportName = sanitizeFilename(resolvedReportName)
   const outputPath = path.join(outputDir, finalReportName)
   log.info('输出路径已确定', { outputPath })
 

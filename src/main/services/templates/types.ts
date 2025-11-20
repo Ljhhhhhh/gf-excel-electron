@@ -255,6 +255,19 @@ export type ExcelJSRenderer<TInput = unknown> = (
   outputPath: string
 ) => Promise<void>
 
+/**
+ * 自定义报表文件名解析器
+ * 可根据用户输入或解析结果生成文件名（需包含扩展名）
+ */
+export type ResolveReportName<TInput = unknown> = (params: {
+  /** 默认生成的文件名（已做基本清理与兜底扩展名） */
+  defaultName: string
+  /** 解析后的数据（模板自定义结构） */
+  parsedData?: ParsedData
+  /** 用户输入参数 */
+  userInput?: TInput
+}) => string
+
 // ========== 模板完整定义 ==========
 
 /**
@@ -282,6 +295,8 @@ export interface TemplateDefinition<TInput = unknown> {
   carboneOptions?: CarboneRenderOptions
   /** ExcelJS 渲染器 - ExcelJS 模式使用 */
   excelRenderer?: ExcelJSRenderer<TInput>
+  /** 自定义报表文件名生成器（可选） */
+  resolveReportName?: ResolveReportName<TInput>
   /** 报表后处理钩子（可选，用于对生成的 Excel 文件进行额外处理） */
   postProcess?: (outputPath: string, userInput?: TInput) => Promise<void>
 }
