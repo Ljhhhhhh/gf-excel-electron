@@ -119,7 +119,7 @@ const inputRules: FormCreateRule[] = [
   {
     type: 'Input',
     field: 'date',
-    title: '目标日期（YYYYMMDD）',
+    title: '目标日期',
     value: (() => {
       const now = new Date()
       const y = now.getFullYear()

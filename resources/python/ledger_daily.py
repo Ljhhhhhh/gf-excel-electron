@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-from copy import copy
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence
 
@@ -169,26 +168,31 @@ def get_last_existing_date(ws) -> Optional[dt.date]:
 def cache_template_row(ws, row_index: int) -> Dict[int, Dict[str, object]]:
     cached: Dict[int, Dict[str, object]] = {}
     for cell in ws[row_index]:
+        translator = None
+        if cell.data_type == "f" and isinstance(cell.value, str):
+            origin = f"{get_column_letter(cell.column)}{row_index}"
+            translator = Translator(cell.value, origin=origin)
         cached[cell.column] = {
             "value": cell.value,
             "data_type": cell.data_type,
-            "style": copy(cell._style),
+            # 样式对象可共享，避免为每个单元格复制带来的样式爆炸与慢速保存
+            "style": cell._style,
+            "translator": translator,
         }
     return cached
 
 
 def apply_template_row(ws, template_cache, target_row: int, template_row_index: int, template_height: Optional[float]):
     for col_idx, meta in template_cache.items():
+        target_cell = ws.cell(row=target_row, column=col_idx)
         tpl_value = meta["value"]
         tpl_type = meta["data_type"]
-        target_cell = ws.cell(row=target_row, column=col_idx)
+        translator: Optional[Translator] = meta.get("translator")  # type: ignore
         if meta.get("style"):
-            target_cell._style = copy(meta["style"])
+            target_cell._style = meta["style"]
 
-        if tpl_type == "f" and isinstance(tpl_value, str):
-            origin = f"{get_column_letter(col_idx)}{template_row_index}"
+        if tpl_type == "f" and translator:
             target = f"{get_column_letter(col_idx)}{target_row}"
-            translator = Translator(tpl_value, origin=origin)
             # openpyxl 3.1 的接口是 translate_formula，而旧版本是 translate
             if hasattr(translator, "translate_formula"):
                 target_cell.value = translator.translate_formula(target)
@@ -237,16 +241,15 @@ def set_cell(ws, row_idx: int, col_idx: int, value):
     cell = ws.cell(row=row_idx, column=col_idx)
     if value is None:
         cell.value = None
-        cell._value = None
-        cell.data_type = "n"
     else:
         cell.value = value
 
 
 def append_loan_block(ws, template_cache, template_height, template_row_index, rows: Iterable[Sequence]) -> int:
     added = 0
+    start_row = ws.max_row
     for record in rows:
-        target_row = ws.max_row + 1
+        target_row = start_row + added + 1
         apply_template_row(ws, template_cache, target_row, template_row_index, template_height)
         apply_b_column_style(ws.cell(row=target_row, column=COL_B))
 
@@ -289,8 +292,9 @@ def append_loan_block(ws, template_cache, template_height, template_row_index, r
 
 def append_repay_block(ws, template_cache, template_height, template_row_index, rows: Iterable[Sequence], repay_type: str) -> int:
     added = 0
+    start_row = ws.max_row
     for record in rows:
-        target_row = ws.max_row + 1
+        target_row = start_row + added + 1
         apply_template_row(ws, template_cache, target_row, template_row_index, template_height)
         apply_b_column_style(ws.cell(row=target_row, column=COL_B))
 
