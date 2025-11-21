@@ -225,7 +225,13 @@ def collect_repay_rows(path: Path, target_date: dt.date) -> List[Sequence]:
 
 
 def set_cell(ws, row_idx: int, col_idx: int, value):
-    ws.cell(row=row_idx, column=col_idx, value=value)
+    cell = ws.cell(row=row_idx, column=col_idx)
+    if value is None:
+        cell.value = None
+        cell._value = None
+        cell.data_type = "n"
+    else:
+        cell.value = value
 
 
 def append_loan_block(ws, template_cache, template_height, template_row_index, rows: Iterable[Sequence]) -> int:
@@ -241,7 +247,8 @@ def append_loan_block(ws, template_cache, template_height, template_row_index, r
         set_cell(ws, target_row, COL_H, record[LOAN_COL_C - 1])
         set_cell(ws, target_row, COL_I, record[LOAN_COL_G - 1])
         set_cell(ws, target_row, COL_J, record[LOAN_COL_AZ - 1])
-        set_cell(ws, target_row, COL_K, record[LOAN_COL_J - 1])
+        loan_k = record[LOAN_COL_J - 1]
+        set_cell(ws, target_row, COL_K, loan_k if loan_k not in (None, "") else "/")
         set_cell(ws, target_row, COL_L, record[LOAN_COL_AA - 1])
         set_cell(ws, target_row, COL_N, record[LOAN_COL_AK - 1])
         # O 列保留模板公式 (=GX&"-"&TX)
@@ -279,7 +286,26 @@ def append_repay_block(ws, template_cache, template_height, template_row_index, 
         set_cell(ws, target_row, COL_K, "/")
         set_cell(ws, target_row, COL_L, record[REPAY_COL_F - 1])
 
-        for col_idx in (COL_N, COL_O, COL_P, COL_Q, COL_R, COL_S, COL_T, COL_U, COL_V, COL_W, COL_X, COL_Z, COL_AB, COL_AC, COL_AD):
+        for col_idx in (
+            COL_M,
+            COL_N,
+            COL_O,
+            COL_P,
+            COL_Q,
+            COL_R,
+            COL_S,
+            COL_T,
+            COL_U,
+            COL_V,
+            COL_W,
+            COL_X,
+            COL_Y,
+            COL_Z,
+            COL_AA,
+            COL_AB,
+            COL_AC,
+            COL_AD,
+        ):
             set_cell(ws, target_row, col_idx, None)
 
         set_cell(ws, target_row, COL_AE, record[REPAY_COL_AE - 1])
@@ -289,6 +315,28 @@ def append_repay_block(ws, template_cache, template_height, template_row_index, 
         set_cell(ws, target_row, COL_AJ, record[REPAY_COL_AE - 1])
         set_cell(ws, target_row, COL_AK, repay_type)
         set_cell(ws, target_row, COL_AR, record[REPAY_COL_AH - 1])
+
+        # 再次强制清空需置空的列，确保不会遗留模板公式/值
+        for col_idx in (
+            COL_M,
+            COL_O,
+            COL_Y,
+            COL_AA,
+            COL_N,
+            COL_P,
+            COL_Q,
+            COL_R,
+            COL_S,
+            COL_T,
+            COL_U,
+            COL_V,
+            COL_W,
+            COL_X,
+            COL_Z,
+            COL_AB,
+            COL_AC,
+        ):
+            set_cell(ws, target_row, col_idx, None)
         added += 1
     return added
 
