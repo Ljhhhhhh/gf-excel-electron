@@ -253,15 +253,21 @@ def append_loan_block(ws, template_cache, template_height, template_row_index, r
         apply_template_row(ws, template_cache, target_row, template_row_index, template_height)
         apply_b_column_style(ws.cell(row=target_row, column=COL_B))
 
+        set_cell(ws, target_row, COL_C, None)
         set_cell(ws, target_row, COL_D, record[LOAN_COL_B - 1])
         set_cell(ws, target_row, COL_E, record[LOAN_COL_AE - 1])
         set_cell(ws, target_row, COL_F, record[LOAN_COL_AG - 1])
         set_cell(ws, target_row, COL_G, record[LOAN_COL_K - 1])
         set_cell(ws, target_row, COL_H, record[LOAN_COL_C - 1])
         set_cell(ws, target_row, COL_I, record[LOAN_COL_G - 1])
-        set_cell(ws, target_row, COL_J, record[LOAN_COL_AZ - 1])
+        loan_j = record[LOAN_COL_AZ - 1]
         loan_k = record[LOAN_COL_J - 1]
-        set_cell(ws, target_row, COL_K, loan_k if loan_k not in (None, "") else "/")
+        if loan_j in (None, "") or loan_k in (None, ""):
+            set_cell(ws, target_row, COL_J, "/")
+            set_cell(ws, target_row, COL_K, "/")
+        else:
+            set_cell(ws, target_row, COL_J, loan_j)
+            set_cell(ws, target_row, COL_K, loan_k)
         set_cell(ws, target_row, COL_L, record[LOAN_COL_AA - 1])
         set_cell(ws, target_row, COL_N, record[LOAN_COL_AK - 1])
         # O 列保留模板公式 (=GX&"-"&TX)
@@ -284,8 +290,9 @@ def append_loan_block(ws, template_cache, template_height, template_row_index, r
         set_cell(ws, target_row, COL_AB, record[LOAN_COL_Q - 1])
         set_cell(ws, target_row, COL_AC, record[LOAN_COL_T - 1])
         set_cell(ws, target_row, COL_AD, record[LOAN_COL_U - 1])
-        for col_idx in (COL_AO, COL_AP, COL_AQ):
-            set_cell(ws, target_row, col_idx, None)
+        set_cell(ws, target_row, COL_AO, f"=VLOOKUP(AG{target_row},P:W,8,0)")
+        set_cell(ws, target_row, COL_AP, None)
+        set_cell(ws, target_row, COL_AQ, f"=XLOOKUP(AG{target_row},P:P,AD:AD)")
         added += 1
     return added
 
@@ -298,6 +305,7 @@ def append_repay_block(ws, template_cache, template_height, template_row_index, 
         apply_template_row(ws, template_cache, target_row, template_row_index, template_height)
         apply_b_column_style(ws.cell(row=target_row, column=COL_B))
 
+        set_cell(ws, target_row, COL_C, None)
         set_cell(ws, target_row, COL_D, record[REPAY_COL_G - 1])
         set_cell(ws, target_row, COL_E, record[REPAY_COL_H - 1])
         set_cell(ws, target_row, COL_F, record[REPAY_COL_J - 1])
@@ -327,9 +335,7 @@ def append_repay_block(ws, template_cache, template_height, template_row_index, 
             COL_AB,
             COL_AC,
             COL_AD,
-            COL_AO,
             COL_AP,
-            COL_AQ,
         ):
             set_cell(ws, target_row, col_idx, None)
 
@@ -339,6 +345,8 @@ def append_repay_block(ws, template_cache, template_height, template_row_index, 
         set_cell(ws, target_row, COL_AI, record[REPAY_COL_AG - 1])
         set_cell(ws, target_row, COL_AJ, record[REPAY_COL_AE - 1])
         set_cell(ws, target_row, COL_AK, repay_type)
+        set_cell(ws, target_row, COL_AO, f"=VLOOKUP(AG{target_row},P:W,8,0)")
+        set_cell(ws, target_row, COL_AQ, f"=XLOOKUP(AG{target_row},P:P,AD:AD)")
         set_cell(ws, target_row, COL_AR, record[REPAY_COL_AH - 1])
         added += 1
     return added
