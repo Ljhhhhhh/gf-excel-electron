@@ -19,6 +19,7 @@ from typing import Dict, Iterable, List, Optional, Sequence
 
 from openpyxl import load_workbook
 from openpyxl.formula.translate import Translator
+from openpyxl.styles import PatternFill, Font
 from openpyxl.utils import column_index_from_string, get_column_letter
 
 # === 常量 ===
@@ -64,6 +65,9 @@ COL_AH = column_index_from_string("AH")
 COL_AI = column_index_from_string("AI")
 COL_AJ = column_index_from_string("AJ")
 COL_AK = column_index_from_string("AK")
+COL_AO = column_index_from_string("AO")
+COL_AP = column_index_from_string("AP")
+COL_AQ = column_index_from_string("AQ")
 COL_AR = column_index_from_string("AR")
 
 # 放款明细列
@@ -197,6 +201,11 @@ def apply_template_row(ws, template_cache, target_row: int, template_row_index: 
         ws.row_dimensions[target_row].height = template_height
 
 
+def apply_b_column_style(cell):
+    cell.fill = PatternFill(fill_type='solid', fgColor='FFFFE699')
+    cell.font = Font(color='FFC00000', size=11, bold=True)
+
+
 def collect_loan_rows(path: Path, target_date: dt.date) -> List[Sequence]:
     wb = load_workbook(path, read_only=True, data_only=False)
     ws = wb.active
@@ -239,6 +248,7 @@ def append_loan_block(ws, template_cache, template_height, template_row_index, r
     for record in rows:
         target_row = ws.max_row + 1
         apply_template_row(ws, template_cache, target_row, template_row_index, template_height)
+        apply_b_column_style(ws.cell(row=target_row, column=COL_B))
 
         set_cell(ws, target_row, COL_D, record[LOAN_COL_B - 1])
         set_cell(ws, target_row, COL_E, record[LOAN_COL_AE - 1])
@@ -262,10 +272,17 @@ def append_loan_block(ws, template_cache, template_height, template_row_index, r
         set_cell(ws, target_row, COL_V, record[LOAN_COL_AW - 1])
         set_cell(ws, target_row, COL_W, record[LOAN_COL_P - 1])
         set_cell(ws, target_row, COL_X, record[LOAN_COL_BC - 1])
-        set_cell(ws, target_row, COL_Z, record[LOAN_COL_BF - 1])
+        bf_value = record[LOAN_COL_BF - 1]
+        if isinstance(bf_value, (int, float)):
+            set_cell(ws, target_row, COL_Z, round(float(bf_value), 4))
+            ws.cell(row=target_row, column=COL_Z).number_format = "0.00%"
+        else:
+            set_cell(ws, target_row, COL_Z, bf_value)
         set_cell(ws, target_row, COL_AB, record[LOAN_COL_Q - 1])
         set_cell(ws, target_row, COL_AC, record[LOAN_COL_T - 1])
         set_cell(ws, target_row, COL_AD, record[LOAN_COL_U - 1])
+        for col_idx in (COL_AO, COL_AP, COL_AQ):
+            set_cell(ws, target_row, col_idx, None)
         added += 1
     return added
 
@@ -275,6 +292,7 @@ def append_repay_block(ws, template_cache, template_height, template_row_index, 
     for record in rows:
         target_row = ws.max_row + 1
         apply_template_row(ws, template_cache, target_row, template_row_index, template_height)
+        apply_b_column_style(ws.cell(row=target_row, column=COL_B))
 
         set_cell(ws, target_row, COL_D, record[REPAY_COL_G - 1])
         set_cell(ws, target_row, COL_E, record[REPAY_COL_H - 1])
@@ -305,6 +323,9 @@ def append_repay_block(ws, template_cache, template_height, template_row_index, 
             COL_AB,
             COL_AC,
             COL_AD,
+            COL_AO,
+            COL_AP,
+            COL_AQ,
         ):
             set_cell(ws, target_row, col_idx, None)
 
@@ -315,28 +336,6 @@ def append_repay_block(ws, template_cache, template_height, template_row_index, 
         set_cell(ws, target_row, COL_AJ, record[REPAY_COL_AE - 1])
         set_cell(ws, target_row, COL_AK, repay_type)
         set_cell(ws, target_row, COL_AR, record[REPAY_COL_AH - 1])
-
-        # 再次强制清空需置空的列，确保不会遗留模板公式/值
-        for col_idx in (
-            COL_M,
-            COL_O,
-            COL_Y,
-            COL_AA,
-            COL_N,
-            COL_P,
-            COL_Q,
-            COL_R,
-            COL_S,
-            COL_T,
-            COL_U,
-            COL_V,
-            COL_W,
-            COL_X,
-            COL_Z,
-            COL_AB,
-            COL_AC,
-        ):
-            set_cell(ws, target_row, col_idx, None)
         added += 1
     return added
 
