@@ -262,12 +262,8 @@ def append_loan_block(ws, template_cache, template_height, template_row_index, r
         set_cell(ws, target_row, COL_I, record[LOAN_COL_G - 1])
         loan_j = record[LOAN_COL_AZ - 1]
         loan_k = record[LOAN_COL_J - 1]
-        if loan_j in (None, "") or loan_k in (None, ""):
-            set_cell(ws, target_row, COL_J, "/")
-            set_cell(ws, target_row, COL_K, "/")
-        else:
-            set_cell(ws, target_row, COL_J, loan_j)
-            set_cell(ws, target_row, COL_K, loan_k)
+        set_cell(ws, target_row, COL_J, loan_j if loan_j not in (None, "") else "/")
+        set_cell(ws, target_row, COL_K, loan_k if loan_k not in (None, "") else "/")
         set_cell(ws, target_row, COL_L, record[LOAN_COL_AA - 1])
         set_cell(ws, target_row, COL_N, record[LOAN_COL_AK - 1])
         # O 列保留模板公式 (=GX&"-"&TX)
