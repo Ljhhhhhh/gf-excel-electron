@@ -13,6 +13,7 @@ import { f103FactoringDetailTemplate } from './f103FactoringDetail'
 import { localStatisticsTemplate } from './localStatistics'
 import { month1excelTemplate } from './month1excel'
 import { ledgerDailyTemplate } from './ledgerDaily'
+import { emailNotifyTemplate } from './emailNotify'
 
 /**
  * 初始化模板系统
@@ -31,6 +32,7 @@ export function initTemplates(): void {
   registerTemplate(f103FactoringDetailTemplate)
   registerTemplate(localStatisticsTemplate)
   registerTemplate(ledgerDailyTemplate)
+  registerTemplate(emailNotifyTemplate)
 
   console.log('[Templates] 模板系统初始化完成')
 }
