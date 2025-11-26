@@ -16,6 +16,10 @@ extraResources:
     to: reportTemplates
     filter:
       - '**/*'
+  - from: resources/python
+    to: python
+    filter:
+      - '**/*'
 win:
   executableName: 国富报表工具
 nsis:
