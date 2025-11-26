@@ -97,6 +97,8 @@ async function resolveExtraSourceContext(
       await workbook.xlsx.readFile(providedPath)
       sheets = workbook.worksheets.map((ws) => ws.name)
     } catch (error) {
+      // 增强错误日志：记录完整的原始错误信息以便诊断
+      log.error('额外数据源 Excel 读取失败', { data: JSON.stringify(error, null, 2) })
       throw new ExcelParseError(providedPath, error)
     }
     log.info('额外数据源已加载 Workbook', {

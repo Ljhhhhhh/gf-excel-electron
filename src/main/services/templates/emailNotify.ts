@@ -519,7 +519,6 @@ function sanitizeSheetName(name: string): string {
  */
 function setHeaderCellStyle(cell: ExcelJS.Cell, isTitle: boolean = false): void {
   cell.font = {
-    bold: true,
     size: isTitle ? 12 : 11,
     color: { argb: 'FF000000' }
   }
@@ -533,12 +532,12 @@ function setTableHeaderStyle(cell: ExcelJS.Cell): void {
   cell.fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FFED7D30' } // 橙色背景
+    fgColor: { argb: 'FFFEDB61' } // 橙色背景
   }
   cell.font = {
     bold: true,
     size: 11,
-    color: { argb: 'FFFFFFFF' } // 白色文字
+    color: { argb: 'FF000000' } // 白色文字
   }
   cell.alignment = {
     horizontal: 'center',

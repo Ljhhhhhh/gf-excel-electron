@@ -282,3 +282,5 @@ interface JobInfo {
 - 数据集：原始数据文件的受控副本与其元信息。
 - 任务（Job）：一次报表生成流程的调度单位。
 - 引擎：Carbone 或 ExcelJS。
+
+注意：所有的 Excel 文件（包括主数据源和额外数据源）加载逻辑统一修改为 使用 fs.createReadStream 创建文件流，并通过 workbook.xlsx.read(stream) 进行加载。
