@@ -20,6 +20,10 @@ extraResources:
     to: python
     filter:
       - '**/*'
+  - from: resources/python-embed
+    to: python-embed
+    filter:
+      - '**/*'
 win:
   executableName: 国富报表工具
 nsis:

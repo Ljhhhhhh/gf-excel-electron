@@ -28,6 +28,22 @@ function resolvePythonScriptPath(): string {
   return fs.existsSync(devPath) ? devPath : prodPath
 }
 
+function resolvePythonExecutable(): string {
+  // 开发环境：使用 resources/python-embed/python.exe
+  const devPath = path.join(process.cwd(), 'resources', 'python-embed', 'python.exe')
+  // 生产环境：使用打包后的 python-embed/python.exe
+  const prodPath = path.join(process.resourcesPath ?? process.cwd(), 'python-embed', 'python.exe')
+
+  if (fs.existsSync(devPath)) {
+    return devPath
+  }
+  if (fs.existsSync(prodPath)) {
+    return prodPath
+  }
+  // 回退到系统 Python（兼容旧环境或用户自定义）
+  return process.env.PYTHON_PATH || 'python'
+}
+
 function normalizeInputDate(value: string): string {
   if (!/^\d{8}$/.test(value)) {
     throw new Error('日期格式需为 YYYYMMDD')
@@ -87,7 +103,7 @@ async function renderLedgerDailyWithPython(
     throw new Error(`未找到台账 Python 脚本: ${scriptPath}`)
   }
 
-  const pythonExecutable = process.env.PYTHON_PATH || 'python'
+  const pythonExecutable = resolvePythonExecutable()
   await execa(
     pythonExecutable,
     [
