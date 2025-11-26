@@ -283,4 +283,129 @@ interface JobInfo {
 - 任务（Job）：一次报表生成流程的调度单位。
 - 引擎：Carbone 或 ExcelJS。
 
-注意：所有的 Excel 文件（包括主数据源和额外数据源）加载逻辑统一修改为 使用 fs.createReadStream 创建文件流，并通过 workbook.xlsx.read(stream) 进行加载。
+---
+
+## 18. Excel 数据源加载规范
+
+### 18.1 主数据源加载
+
+所有的 Excel 文件加载逻辑统一使用 `fs.createReadStream` 创建文件流，并通过 `workbook.xlsx.read(stream)` 进行加载，避免使用 `workbook.xlsx.readFile`。
+
+### 18.2 额外数据源处理规范（强制）
+
+模板中涉及额外数据源（如放款明细、邮件采集表等）的处理，**必须**统一使用以下模式：
+
+#### 类型定义
+
+使用 `ExtraSourceContext` 类型（定义于 `src/main/services/templates/types.ts`）：
+
+```ts
+interface ExtraSourceContext {
+  path: string // 文件路径
+  workbook?: Workbook // 已加载的工作簿（workbook 模式）
+  createReader?: () => WorkbookReader // 流式读取器工厂（流式模式）
+}
+```
+
+#### 数据收集函数模式
+
+每个额外数据源的处理函数必须同时支持 workbook 和流式两种模式：
+
+```ts
+async function collectDataFromSource(
+  extraSource: ExtraSourceContext,
+  sheetRef: string | number,
+  startRow: number
+): Promise<Map<string, DataType>> {
+  // 模式 1：workbook 已加载
+  if (extraSource.workbook) {
+    const worksheet =
+      typeof sheetRef === 'number'
+        ? extraSource.workbook.worksheets[sheetRef]
+        : extraSource.workbook.getWorksheet(sheetRef)
+
+    if (!worksheet) return new Map()
+    return buildMapFromWorksheet(worksheet, startRow)
+  }
+
+  // 模式 2：流式读取
+  if (extraSource.createReader) {
+    const map = new Map<string, DataType>()
+
+    await streamWorksheetRows(
+      {
+        readerFactory: extraSource.createReader,
+        sheet: sheetRef,
+        startRow,
+        rowYieldInterval: ROW_YIELD_INTERVAL
+      },
+      (row) => {
+        const extracted = extractDataFromRow(row as Row)
+        if (extracted) {
+          map.set(extracted.key, extracted.value)
+        }
+      }
+    )
+
+    return map
+  }
+
+  throw new Error('数据源未提供可用的访问方式')
+}
+```
+
+#### 行数据提取函数
+
+将单行数据提取逻辑抽离为独立函数，供 workbook 和流式模式复用：
+
+```ts
+function extractDataFromRow(row: Row): { key: string; value: DataType } | null {
+  if (!row.hasValues) return null
+  // 提取逻辑...
+}
+```
+
+#### 流式工具函数
+
+使用 `streamWorksheetRows`（定义于 `src/main/services/templates/streamUtils.ts`）进行流式处理：
+
+```ts
+import { streamWorksheetRows } from './streamUtils'
+
+const STREAM_WORKBOOK_OPTIONS = {
+  sharedStrings: 'cache' as const,
+  hyperlinks: 'ignore' as const,
+  styles: 'ignore' as const,
+  worksheets: 'emit' as const
+}
+const ROW_YIELD_INTERVAL = 2000 // 每 2000 行让出事件循环
+```
+
+#### 模板定义
+
+- 移除额外数据源的 `loadStrategy: 'workbook'`，使用默认的 `auto` 模式
+- 同时提供 `parser` 和 `streamParser`，系统会根据情况自动选择
+
+```ts
+export const myTemplate: TemplateDefinition<void> = {
+  meta: {
+    extraSources: [
+      {
+        id: 'extraSourceId',
+        label: '额外数据源',
+        required: true,
+        supportedExts: ['xlsx']
+        // 不指定 loadStrategy，默认 auto
+      }
+    ]
+  },
+  parser: parseWorkbook, // workbook 模式解析器
+  streamParser: streamParseWorkbook // 流式模式解析器
+}
+```
+
+#### 参考实现
+
+- `src/main/services/templates/bankCommon.ts` - `collectLoanRowsFromSource`
+- `src/main/services/templates/month1carbone.ts` - `sumAssetTransferAmountFromSource`
+- `src/main/services/templates/emailNotify.ts` - `collectLoanDetailFromSource`、`collectEmailInfoFromSource`

@@ -4,6 +4,7 @@
  */
 
 import ExcelJS from 'exceljs'
+import fs from 'node:fs'
 
 /**
  * 处理 Excel 报告的通用配置接口
@@ -38,9 +39,10 @@ export async function processExcelReport(options: ProcessExcelReportOptions): Pr
     // 1. 创建工作簿实例并加载文件
     const workbook = new ExcelJS.Workbook()
 
-    // 读取文件（应该已经被 dataToReport 规范化过）
-    await workbook.xlsx.readFile(inputPath)
-    console.log(`[postProcess] 文件读取成功`)
+    // 使用流式加载（与其他模块保持一致）
+    const stream = fs.createReadStream(inputPath)
+    await workbook.xlsx.read(stream)
+    console.log(`[postProcess] 文件读取成功（流式）`)
 
     // 获取指定工作表
     const sheet = workbook.getWorksheet(sheetName)

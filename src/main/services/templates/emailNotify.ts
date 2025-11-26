@@ -18,8 +18,9 @@
  */
 
 import ExcelJS from 'exceljs'
-import type { Workbook } from 'exceljs'
-import type { TemplateDefinition, ParseOptions } from './types'
+import type { Workbook, Row, Worksheet } from 'exceljs'
+import type { TemplateDefinition, ParseOptions, ExtraSourceContext } from './types'
+import { streamWorksheetRows } from './streamUtils'
 
 // ========== 常量定义 ==========
 
@@ -29,6 +30,16 @@ const EMAIL_COLLECTION_SOURCE_ID = 'emailCollection'
 
 /** 默认配置 */
 const DEFAULT_DATA_START_ROW = 2 // 数据从第2行开始（第1行为标题）
+const DEFAULT_SHEET = 0 // 默认第一个工作表
+const ROW_YIELD_INTERVAL = 2000 // 流式处理时每 2000 行让出事件循环
+
+/** 流式工作簿选项 */
+const STREAM_WORKBOOK_OPTIONS = {
+  sharedStrings: 'cache' as const,
+  hyperlinks: 'ignore' as const,
+  styles: 'ignore' as const,
+  worksheets: 'emit' as const
+}
 
 /** 需要筛选的即期逾期天数值 */
 const TARGET_OVERDUE_DAYS = new Set([0, -1, -5, -10])
@@ -247,82 +258,215 @@ function formatDateForFilename(): string {
 // ========== 数据提取函数 ==========
 
 /**
- * 构建放款明细匹配表
- * key: 放款流水号, value: 第一条 U 列包含"通商"的记录
+ * 从单行提取放款明细匹配信息
  */
-function buildLoanDetailMap(workbook: Workbook, startRow: number): Map<string, LoanDetailMatch> {
-  const map = new Map<string, LoanDetailMatch>()
-  const worksheet = workbook.worksheets[0]
+function extractLoanDetailFromRow(
+  row: Row
+): { loanSerialNo: string; match: LoanDetailMatch } | null {
+  if (!row.hasValues) return null
 
-  if (!worksheet) {
-    console.warn('[emailNotify] 放款明细工作簿无工作表')
-    return map
-  }
+  const loanSerialNo = toString(row.getCell(LOAN_DETAIL_COLUMNS.loanSerialNo).value)
+  const bankName = toString(row.getCell(LOAN_DETAIL_COLUMNS.bankName).value)
 
-  const endRow = worksheet.rowCount
-  for (let rowNum = startRow; rowNum <= endRow; rowNum++) {
-    const row = worksheet.getRow(rowNum)
-    if (!row.hasValues) continue
+  // 仅处理 U 列包含"通商"的记录
+  if (!loanSerialNo || !containsTongShang(bankName)) return null
 
-    const loanSerialNo = toString(row.getCell(LOAN_DETAIL_COLUMNS.loanSerialNo).value)
-    const bankName = toString(row.getCell(LOAN_DETAIL_COLUMNS.bankName).value)
-
-    // 仅处理 U 列包含"通商"的记录
-    if (!loanSerialNo || !containsTongShang(bankName)) continue
-
-    // 如果该放款流水号已有匹配，跳过（只取第一条）
-    if (map.has(loanSerialNo)) continue
-
-    map.set(loanSerialNo, {
+  return {
+    loanSerialNo,
+    match: {
       bankName,
       arTransferAmount: toNumber(row.getCell(LOAN_DETAIL_COLUMNS.arTransferAmount).value),
       loanAmount: toNumber(row.getCell(LOAN_DETAIL_COLUMNS.loanAmount).value)
-    })
+    }
   }
+}
 
-  console.log(`[emailNotify] 放款明细匹配表构建完成，共 ${map.size} 条通商记录`)
+/**
+ * 从 worksheet 构建放款明细匹配表
+ */
+function buildLoanDetailMapFromWorksheet(
+  worksheet: Worksheet,
+  startRow: number
+): Map<string, LoanDetailMatch> {
+  const map = new Map<string, LoanDetailMatch>()
+  const endRow = worksheet.rowCount
 
-  // 调试：打印前 3 条放款流水号样例
-  const samples = Array.from(map.keys()).slice(0, 3)
-  console.log(`[emailNotify] 调试 - 放款明细流水号样例: ${samples.map((s) => `"${s}"`).join(', ')}`)
+  for (let rowNum = startRow; rowNum <= endRow; rowNum++) {
+    const row = worksheet.getRow(rowNum)
+    const extracted = extractLoanDetailFromRow(row)
+    if (!extracted) continue
+
+    // 如果该放款流水号已有匹配，跳过（只取第一条）
+    if (map.has(extracted.loanSerialNo)) continue
+    map.set(extracted.loanSerialNo, extracted.match)
+  }
 
   return map
 }
 
 /**
- * 构建邮箱信息匹配表
- * key: 客户名称, value: 邮箱信息
+ * 从额外数据源构建放款明细匹配表（支持 workbook 和流式两种模式）
+ * key: 放款流水号, value: 第一条 U 列包含"通商"的记录
  */
-function buildEmailMap(workbook: Workbook, startRow: number): Map<string, EmailInfo> {
-  const map = new Map<string, EmailInfo>()
-  const worksheet = workbook.worksheets[0]
+async function collectLoanDetailFromSource(
+  extraSource: ExtraSourceContext,
+  sheetRef: string | number,
+  startRow: number
+): Promise<Map<string, LoanDetailMatch>> {
+  // 模式 1：workbook 已加载
+  if (extraSource.workbook) {
+    const worksheet =
+      typeof sheetRef === 'number'
+        ? extraSource.workbook.worksheets[sheetRef]
+        : extraSource.workbook.getWorksheet(sheetRef)
 
-  if (!worksheet) {
-    console.warn('[emailNotify] 邮件采集表工作簿无工作表')
+    if (!worksheet) {
+      console.warn('[emailNotify] 放款明细工作簿无工作表')
+      return new Map()
+    }
+
+    const map = buildLoanDetailMapFromWorksheet(worksheet, startRow)
+    console.log(`[emailNotify] 放款明细匹配表构建完成（workbook 模式），共 ${map.size} 条通商记录`)
+
+    // 调试：打印前 3 条放款流水号样例
+    const samples = Array.from(map.keys()).slice(0, 3)
+    console.log(
+      `[emailNotify] 调试 - 放款明细流水号样例: ${samples.map((s) => `"${s}"`).join(', ')}`
+    )
+
     return map
   }
 
-  const endRow = worksheet.rowCount
-  for (let rowNum = startRow; rowNum <= endRow; rowNum++) {
-    const row = worksheet.getRow(rowNum)
-    if (!row.hasValues) continue
+  // 模式 2：流式读取
+  if (extraSource.createReader) {
+    const map = new Map<string, LoanDetailMatch>()
 
-    const clientName = toString(row.getCell(EMAIL_COLLECTION_COLUMNS.clientName).value)
-    if (!clientName) continue
+    await streamWorksheetRows(
+      {
+        readerFactory: extraSource.createReader,
+        sheet: sheetRef,
+        startRow,
+        rowYieldInterval: ROW_YIELD_INTERVAL
+      },
+      (row) => {
+        const extracted = extractLoanDetailFromRow(row as Row)
+        if (!extracted) return
 
-    // 如果该客户名称已存在，跳过（只取第一条）
-    if (map.has(clientName)) continue
+        // 如果该放款流水号已有匹配，跳过（只取第一条）
+        if (map.has(extracted.loanSerialNo)) return
+        map.set(extracted.loanSerialNo, extracted.match)
+      }
+    )
 
-    map.set(clientName, {
+    console.log(`[emailNotify] 放款明细匹配表构建完成（流式模式），共 ${map.size} 条通商记录`)
+
+    // 调试：打印前 3 条放款流水号样例
+    const samples = Array.from(map.keys()).slice(0, 3)
+    console.log(
+      `[emailNotify] 调试 - 放款明细流水号样例: ${samples.map((s) => `"${s}"`).join(', ')}`
+    )
+
+    return map
+  }
+
+  throw new Error('[emailNotify] 放款明细数据源未提供可用的访问方式')
+}
+
+/**
+ * 从单行提取邮箱信息
+ */
+function extractEmailInfoFromRow(row: Row): { clientName: string; emailInfo: EmailInfo } | null {
+  if (!row.hasValues) return null
+
+  const clientName = toString(row.getCell(EMAIL_COLLECTION_COLUMNS.clientName).value)
+  if (!clientName) return null
+
+  return {
+    clientName,
+    emailInfo: {
       clientAdminEmail: toString(row.getCell(EMAIL_COLLECTION_COLUMNS.clientAdminEmail).value),
       managerEmail: toString(row.getCell(EMAIL_COLLECTION_COLUMNS.managerEmail).value),
       headEmail: toString(row.getCell(EMAIL_COLLECTION_COLUMNS.headEmail).value),
       contactEmail: toString(row.getCell(EMAIL_COLLECTION_COLUMNS.contactEmail).value)
-    })
+    }
+  }
+}
+
+/**
+ * 从 worksheet 构建邮箱信息匹配表
+ */
+function buildEmailMapFromWorksheet(
+  worksheet: Worksheet,
+  startRow: number
+): Map<string, EmailInfo> {
+  const map = new Map<string, EmailInfo>()
+  const endRow = worksheet.rowCount
+
+  for (let rowNum = startRow; rowNum <= endRow; rowNum++) {
+    const row = worksheet.getRow(rowNum)
+    const extracted = extractEmailInfoFromRow(row)
+    if (!extracted) continue
+
+    // 如果该客户名称已存在，跳过（只取第一条）
+    if (map.has(extracted.clientName)) continue
+    map.set(extracted.clientName, extracted.emailInfo)
   }
 
-  console.log(`[emailNotify] 邮箱信息匹配表构建完成，共 ${map.size} 个客户`)
   return map
+}
+
+/**
+ * 从额外数据源构建邮箱信息匹配表（支持 workbook 和流式两种模式）
+ * key: 客户名称, value: 邮箱信息
+ */
+async function collectEmailInfoFromSource(
+  extraSource: ExtraSourceContext,
+  sheetRef: string | number,
+  startRow: number
+): Promise<Map<string, EmailInfo>> {
+  // 模式 1：workbook 已加载
+  if (extraSource.workbook) {
+    const worksheet =
+      typeof sheetRef === 'number'
+        ? extraSource.workbook.worksheets[sheetRef]
+        : extraSource.workbook.getWorksheet(sheetRef)
+
+    if (!worksheet) {
+      console.warn('[emailNotify] 邮件采集表工作簿无工作表')
+      return new Map()
+    }
+
+    const map = buildEmailMapFromWorksheet(worksheet, startRow)
+    console.log(`[emailNotify] 邮箱信息匹配表构建完成（workbook 模式），共 ${map.size} 个客户`)
+    return map
+  }
+
+  // 模式 2：流式读取
+  if (extraSource.createReader) {
+    const map = new Map<string, EmailInfo>()
+
+    await streamWorksheetRows(
+      {
+        readerFactory: extraSource.createReader,
+        sheet: sheetRef,
+        startRow,
+        rowYieldInterval: ROW_YIELD_INTERVAL
+      },
+      (row) => {
+        const extracted = extractEmailInfoFromRow(row as Row)
+        if (!extracted) return
+
+        // 如果该客户名称已存在，跳过（只取第一条）
+        if (map.has(extracted.clientName)) return
+        map.set(extracted.clientName, extracted.emailInfo)
+      }
+    )
+
+    console.log(`[emailNotify] 邮箱信息匹配表构建完成（流式模式），共 ${map.size} 个客户`)
+    return map
+  }
+
+  throw new Error('[emailNotify] 邮件采集表数据源未提供可用的访问方式')
 }
 
 // ========== 解析器实现 ==========
@@ -330,26 +474,28 @@ function buildEmailMap(workbook: Workbook, startRow: number): Map<string, EmailI
 /**
  * 解析即期提醒融资列表，并回填放款明细和邮箱信息
  */
-export function parseWorkbook(
+export async function parseWorkbook(
   workbook: Workbook,
   parseOptions?: EmailNotifyParseOptions
-): EmailNotifyParsedData {
+): Promise<EmailNotifyParsedData> {
   const startRow = parseOptions?.dataStartRow ?? DEFAULT_DATA_START_ROW
 
   // 1. 获取额外数据源
   const loanDetailSource = parseOptions?.extraSources?.[LOAN_DETAIL_SOURCE_ID]
   const emailCollectionSource = parseOptions?.extraSources?.[EMAIL_COLLECTION_SOURCE_ID]
 
-  if (!loanDetailSource?.workbook) {
+  if (!loanDetailSource) {
     throw new Error('[emailNotify] 缺少放款明细数据源')
   }
-  if (!emailCollectionSource?.workbook) {
+  if (!emailCollectionSource) {
     throw new Error('[emailNotify] 缺少邮件采集表数据源')
   }
 
-  // 2. 构建匹配表
-  const loanDetailMap = buildLoanDetailMap(loanDetailSource.workbook, startRow)
-  const emailMap = buildEmailMap(emailCollectionSource.workbook, startRow)
+  // 2. 构建匹配表（支持 workbook 或流式模式）
+  const [emailMap, loanDetailMap] = await Promise.all([
+    collectEmailInfoFromSource(emailCollectionSource, DEFAULT_SHEET, startRow),
+    collectLoanDetailFromSource(loanDetailSource, DEFAULT_SHEET, startRow)
+  ])
 
   // 3. 解析主数据源（即期提醒融资列表）
   const worksheet = workbook.worksheets[0]
@@ -426,6 +572,118 @@ export function parseWorkbook(
   // 统计最终有效行数
   const validRows = rows.filter((r) => r.bank !== '')
   console.log(`[emailNotify] 解析完成，共 ${validRows.length} 行有出款银行信息`)
+
+  return { rows }
+}
+
+/**
+ * 流式解析即期提醒融资列表
+ * 支持主数据源的流式读取，额外数据源根据 loadStrategy 自动选择模式
+ */
+export async function streamParseWorkbook(
+  filePath: string,
+  parseOptions?: EmailNotifyParseOptions
+): Promise<EmailNotifyParsedData> {
+  const startRow = parseOptions?.dataStartRow ?? DEFAULT_DATA_START_ROW
+
+  console.log('[emailNotify] 开始流式解析', { filePath, startRow })
+
+  // 1. 获取额外数据源
+  const loanDetailSource = parseOptions?.extraSources?.[LOAN_DETAIL_SOURCE_ID]
+  const emailCollectionSource = parseOptions?.extraSources?.[EMAIL_COLLECTION_SOURCE_ID]
+
+  if (!loanDetailSource) {
+    throw new Error('[emailNotify] 缺少放款明细数据源')
+  }
+  if (!emailCollectionSource) {
+    throw new Error('[emailNotify] 缺少邮件采集表数据源')
+  }
+
+  // 2. 构建匹配表（支持 workbook 或流式模式）
+  const [emailMap, loanDetailMap] = await Promise.all([
+    collectEmailInfoFromSource(emailCollectionSource, DEFAULT_SHEET, startRow),
+    collectLoanDetailFromSource(loanDetailSource, DEFAULT_SHEET, startRow)
+  ])
+
+  // 3. 流式解析主数据源（即期提醒融资列表）
+  const rows: ParsedRow[] = []
+
+  await streamWorksheetRows(
+    {
+      readerFactory: () =>
+        new ExcelJS.stream.xlsx.WorkbookReader(filePath, STREAM_WORKBOOK_OPTIONS),
+      sheet: DEFAULT_SHEET,
+      startRow,
+      rowYieldInterval: ROW_YIELD_INTERVAL
+    },
+    (row) => {
+      const rowData = row as Row
+      if (!rowData.hasValues) return
+
+      // 筛选 A 列即期逾期天数
+      const overdueDaysRaw = rowData.getCell(REMINDER_COLUMNS.overdueDays).value
+      const overdueDays = toNumber(overdueDaysRaw)
+
+      // 检查是否为目标逾期天数
+      if (!TARGET_OVERDUE_DAYS.has(overdueDays)) return
+
+      const loanSerialNo = toString(rowData.getCell(REMINDER_COLUMNS.loanSerialNo).value)
+      const clientName = toString(rowData.getCell(REMINDER_COLUMNS.clientName).value)
+
+      // 从放款明细匹配银行和金额信息
+      const loanMatch = loanDetailMap.get(loanSerialNo)
+
+      // 调试：打印前几条匹配信息
+      if (rows.length < 5) {
+        console.log(
+          `[emailNotify] 调试（流式） - 逾期天数=${overdueDays}, 放款流水号="${loanSerialNo}", 客户="${clientName}", 匹配结果=${loanMatch ? '找到' : '未找到'}`
+        )
+      }
+
+      const parsedRow: ParsedRow = {
+        overdueDays,
+        clientName,
+        buyerName: toString(rowData.getCell(REMINDER_COLUMNS.buyerName).value),
+        assetNo: toString(rowData.getCell(REMINDER_COLUMNS.assetNo).value),
+        loanSerialNo,
+        repaymentAmount: toNumber(rowData.getCell(REMINDER_COLUMNS.repaymentAmount).value),
+        financingDueDate: formatDate(
+          parseDate(rowData.getCell(REMINDER_COLUMNS.financingDueDate).value)
+        ),
+        arDueDate: formatDate(parseDate(rowData.getCell(REMINDER_COLUMNS.arDueDate).value)),
+        // 回填字段
+        bank: loanMatch?.bankName ?? '',
+        arTransferAmount: loanMatch?.arTransferAmount ?? 0,
+        loanAmount: loanMatch?.loanAmount ?? 0,
+        // 邮箱字段稍后填充
+        clientAdminEmail: '',
+        managerEmail: '',
+        headEmail: '',
+        contactEmail: ''
+      }
+
+      rows.push(parsedRow)
+    }
+  )
+
+  console.log(`[emailNotify] 流式第一轮筛选完成，共 ${rows.length} 行符合逾期天数条件`)
+
+  // 第二轮：为出款银行不为空的行补齐邮箱信息
+  for (const row of rows) {
+    if (!row.bank) continue // 出款银行为空则跳过
+
+    const emailInfo = emailMap.get(row.clientName)
+    if (emailInfo) {
+      row.clientAdminEmail = emailInfo.clientAdminEmail
+      row.managerEmail = emailInfo.managerEmail
+      row.headEmail = emailInfo.headEmail
+      row.contactEmail = emailInfo.contactEmail
+    }
+  }
+
+  // 统计最终有效行数
+  const validRows = rows.filter((r) => r.bank !== '')
+  console.log(`[emailNotify] 流式解析完成，共 ${validRows.length} 行有出款银行信息`)
 
   return { rows }
 }
@@ -711,16 +969,16 @@ export const emailNotifyTemplate: TemplateDefinition<void> = {
         label: '放款明细',
         description: '请选择《放款明细》Excel 文件（第一张工作表）',
         required: true,
-        supportedExts: ['xlsx'],
-        loadStrategy: 'workbook'
+        supportedExts: ['xlsx']
+        // loadStrategy 默认 auto，根据是否有 streamParser 自动选择
       },
       {
         id: EMAIL_COLLECTION_SOURCE_ID,
         label: '通商回款邮件提醒信息采集',
         description: '请选择《通商回款邮件提醒信息采集》Excel 文件（第一张工作表）',
         required: true,
-        supportedExts: ['xlsx'],
-        loadStrategy: 'workbook'
+        supportedExts: ['xlsx']
+        // loadStrategy 默认 auto，根据是否有 streamParser 自动选择
       }
     ]
   },
@@ -728,6 +986,7 @@ export const emailNotifyTemplate: TemplateDefinition<void> = {
   // 此模板不需要用户额外输入参数
   inputRule: undefined,
   parser: parseWorkbook,
+  streamParser: streamParseWorkbook,
   excelRenderer: renderWithExcelJS,
   resolveReportName: () => {
     // 生成文件名：即期提醒汇总_YYYYMMDD.xlsx

@@ -94,14 +94,16 @@ async function resolveExtraSourceContext(
   if (shouldLoadWorkbook) {
     workbook = new ExcelJS.Workbook()
     try {
-      await workbook.xlsx.readFile(providedPath)
+      // 使用流式加载（与主数据源保持一致）
+      const stream = fs.createReadStream(providedPath)
+      await workbook.xlsx.read(stream)
       sheets = workbook.worksheets.map((ws) => ws.name)
     } catch (error) {
       // 增强错误日志：记录完整的原始错误信息以便诊断
       log.error('额外数据源 Excel 读取失败', { data: JSON.stringify(error, null, 2) })
       throw new ExcelParseError(providedPath, error)
     }
-    log.info('额外数据源已加载 Workbook', {
+    log.info('额外数据源已加载 Workbook（流式）', {
       requirementId: requirement.id,
       label: requirement.label,
       sheets
@@ -217,12 +219,14 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
       sheets: [] // 流式模式下不提供sheet列表
     }
   } else {
-    // 使用传统完整加载模式
-    log.info('使用完整加载模式', { templateId })
+    // 使用完整加载模式（流式读取）
+    log.info('使用完整加载模式（流式）', { templateId })
     try {
       workbook = new ExcelJS.Workbook()
-      await workbook.xlsx.readFile(sourcePath)
-      log.info('Workbook 已加载', {
+      // 使用流式加载以优化内存使用
+      const stream = fs.createReadStream(sourcePath)
+      await workbook.xlsx.read(stream)
+      log.info('Workbook 已加载（流式）', {
         templateId,
         sheetCount: workbook.worksheets.length,
         sheets: workbook.worksheets.map((ws) => ws.name)
