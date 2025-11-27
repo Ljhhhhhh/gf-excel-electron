@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Daily ledger updater for the “融资及还款明细” sheet.
+Daily ledger updater for multiple sheets:
+- "融资及还款明细" sheet (docs/1融资及还款明细说明.txt)
+- "资产明细" sheet (docs/2资产明细说明.txt)
 
-Rules are defined by docs/1融资及还款明细说明.txt and must:
+Rules:
 - preserve every existing cell (values, formulas, styles);
-- append new rows for 放款明细 + 保理/再保理融资还款明细 in order;
-- merge AI cells with the same AR & AE (=目标日期) and sum AH.
+- append new rows based on target date;
+- apply specific formatting and transformations per sheet.
 """
 
 from __future__ import annotations
@@ -25,7 +27,8 @@ from openpyxl.utils import column_index_from_string, get_column_letter
 # === 常量 ===
 
 TEMPLATE_ROW_INDEX = 10
-TARGET_SHEET_KEYWORD = "融资及还款明细"
+SHEET_FINANCING_REPAYMENT = "融资及还款明细"
+SHEET_ASSET_DETAIL = "资产明细"
 
 # 目标表列
 COL_A = column_index_from_string("A")
@@ -106,6 +109,23 @@ REPAY_COL_O = column_index_from_string("O")
 REPAY_COL_AG = column_index_from_string("AG")
 REPAY_COL_AH = column_index_from_string("AH")
 
+# 放款明细列（资产明细用）- 补充未定义的列
+LOAN_COL_D = column_index_from_string("D")
+LOAN_COL_E = column_index_from_string("E")
+LOAN_COL_F = column_index_from_string("F")
+LOAN_COL_S = column_index_from_string("S")
+LOAN_COL_AC = column_index_from_string("AC")
+LOAN_COL_AF = column_index_from_string("AF")
+LOAN_COL_AH = column_index_from_string("AH")
+LOAN_COL_AI = column_index_from_string("AI")
+LOAN_COL_AJ = column_index_from_string("AJ")
+LOAN_COL_AL = column_index_from_string("AL")
+LOAN_COL_AM = column_index_from_string("AM")
+LOAN_COL_AN = column_index_from_string("AN")
+LOAN_COL_AO = column_index_from_string("AO")
+LOAN_COL_AQ = column_index_from_string("AQ")
+LOAN_COL_AR = column_index_from_string("AR")
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Append ledger financing & repayment rows.")
@@ -140,13 +160,11 @@ def normalize_excel_date(value) -> Optional[dt.date]:
     return None
 
 
-def find_target_sheet(wb) -> "Worksheet":
-    if TARGET_SHEET_KEYWORD in wb.sheetnames:
-        return wb[TARGET_SHEET_KEYWORD]
-    for name in wb.sheetnames:
-        if "融资" in name and "还款" in name:
-            return wb[name]
-    raise SystemExit("未找到目标工作表：融资及还款明细")
+def find_sheet_by_name(wb, sheet_name: str) -> "Worksheet":
+    """ 根据名称查找工作表 """
+    if sheet_name in wb.sheetnames:
+        return wb[sheet_name]
+    raise SystemExit(f"未找到目标工作表：{sheet_name}")
 
 
 def find_last_data_row(ws) -> int:
@@ -440,6 +458,134 @@ def merge_ai_with_sum(ws, start_row: int, end_row: int, target_date: dt.date):
     finalize(current_group, current_ar)
 
 
+# =============================================================================
+# 资产明细 Sheet 处理函数
+# =============================================================================
+
+def append_asset_detail_block(ws, template_cache, template_height, template_row_index: int, rows: Iterable[Sequence]) -> int:
+    """
+    向【资产明细】sheet 追加放款明细数据
+    数据来源：放款明细表，筛选条件为 P 列实际放款日期 = 目标日期
+    """
+    added = 0
+    start_row = ws.max_row
+    for record in rows:
+        target_row = start_row + added + 1
+        apply_template_row(ws, template_cache, target_row, template_row_index, template_height)
+
+        # A列：公式 =ROW()-3
+        set_cell(ws, target_row, COL_A, f"=ROW()-3")
+        # C列：放款明细 B列 业务来源
+        set_cell(ws, target_row, COL_C, record[LOAN_COL_B - 1])
+        # D列：固定为"宁波国富商业保理有限公司"
+        set_cell(ws, target_row, COL_D, "宁波国富商业保理有限公司")
+        # E列：放款明细 AA列 所属行业
+        set_cell(ws, target_row, COL_E, record[LOAN_COL_AA - 1])
+        # F列：放款明细 E列 经济成分
+        set_cell(ws, target_row, COL_F, record[LOAN_COL_E - 1])
+        # G列：放款明细 F列 企业规模
+        set_cell(ws, target_row, COL_G, record[LOAN_COL_F - 1])
+        # H列：放款明细 AI列 产品名称
+        set_cell(ws, target_row, COL_H, record[LOAN_COL_AI - 1])
+        # I列：放款明细 AC列 是否票据增信
+        set_cell(ws, target_row, COL_I, record[LOAN_COL_AC - 1])
+        # J列：放款明细 AF列 有/无追索权
+        set_cell(ws, target_row, COL_J, record[LOAN_COL_AF - 1])
+        # K列：放款明细 AG列 明暗保
+        loan_k = record[LOAN_COL_AG - 1]
+        if isinstance(loan_k, str):
+            if loan_k.strip() == '明保':
+                loan_k = '明保理'
+            elif loan_k.strip() == '暗保':
+                loan_k = '暗保理'
+        set_cell(ws, target_row, COL_K, loan_k)
+        # M列：放款明细 AJ列 单据类型
+        set_cell(ws, target_row, COL_M, record[LOAN_COL_AJ - 1])
+        # N列：放款明细 AH列 正反向
+        set_cell(ws, target_row, COL_N, record[LOAN_COL_AH - 1])
+        # P列：放款明细 C列 保理/再保理申请人名称
+        set_cell(ws, target_row, COL_P, record[LOAN_COL_C - 1])
+        # Q列：放款明细 D列 统一社会信用代码
+        set_cell(ws, target_row, COL_Q, record[LOAN_COL_D - 1])
+        # R列：放款明细 G列 基础交易对手方名称（买方/卖方）
+        set_cell(ws, target_row, COL_R, record[LOAN_COL_G - 1])
+        # S列：放款明细 S列 收票方名称(多个逗号分割)
+        set_cell(ws, target_row, COL_S, record[LOAN_COL_S - 1])
+        # T列：放款明细 T列 付款方式
+        set_cell(ws, target_row, COL_T, record[LOAN_COL_T - 1])
+        # U列：放款明细 U列 放款账户开户行
+        set_cell(ws, target_row, COL_U, record[LOAN_COL_U - 1])
+        # V列：放款明细 K列 资产编号
+        set_cell(ws, target_row, COL_V, record[LOAN_COL_K - 1])
+        # W列：放款明细 L列 融资申请号
+        set_cell(ws, target_row, COL_W, record[LOAN_COL_L - 1])
+        # X列：放款明细 L列 融资申请号（同W列）
+        set_cell(ws, target_row, COL_X, record[LOAN_COL_L - 1])
+        # Y列：放款明细 AL列 转让日
+        set_cell(ws, target_row, COL_Y, record[LOAN_COL_AL - 1])
+        # Z列：放款明细 AQ列 应收账款金额/价值
+        set_cell(ws, target_row, COL_Z, record[LOAN_COL_AQ - 1])
+        # AA列：放款明细 AR列 转让总金额
+        set_cell(ws, target_row, COL_AA, record[LOAN_COL_AR - 1])
+        # AB列：放款明细 AO列 原始账款到期日
+        set_cell(ws, target_row, COL_AB, record[LOAN_COL_AO - 1])
+        # AD列：放款明细 AM列 转让通知函编号
+        set_cell(ws, target_row, COL_AD, record[LOAN_COL_AM - 1])
+        # AG列：放款明细 AN列 中登登记编号
+        set_cell(ws, target_row, COL_AG, record[LOAN_COL_AN - 1])
+        # AH列：固定为"正常"
+        set_cell(ws, target_row, COL_AH, "正常")
+
+        added += 1
+    return added
+
+
+def process_financing_repayment_sheet(wb, loan_rows: List[Sequence], factoring_repay_rows: List[Sequence],
+                                       refactoring_repay_rows: List[Sequence], target_date: dt.date) -> int:
+    """
+    处理【融资及还款明细】sheet
+    返回新增行数
+    """
+    ws = find_sheet_by_name(wb, SHEET_FINANCING_REPAYMENT)
+    template_cache = cache_template_row(ws, TEMPLATE_ROW_INDEX)
+    template_height = ws.row_dimensions[TEMPLATE_ROW_INDEX].height
+
+    last_date = get_last_existing_date(ws)
+    if last_date and target_date <= last_date:
+        print(f"[融资及还款明细] 无需更新（{target_date} <= {last_date}）")
+        return 0
+
+    append_start_row = find_last_data_row(ws) + 1
+
+    total_added = 0
+    total_added += append_loan_block(ws, template_cache, template_height, TEMPLATE_ROW_INDEX, loan_rows)
+    total_added += append_repay_block(ws, template_cache, template_height, TEMPLATE_ROW_INDEX, factoring_repay_rows, "保理")
+    total_added += append_repay_block(ws, template_cache, template_height, TEMPLATE_ROW_INDEX, refactoring_repay_rows, "再保理")
+
+    if total_added:
+        merge_ai_with_sum(ws, append_start_row, ws.max_row, target_date)
+        apply_b_column_conditional_format(ws, append_start_row, ws.max_row)
+
+    print(f"[融资及还款明细] 新增 {total_added} 行：放款 {len(loan_rows)}，保理还款 {len(factoring_repay_rows)}，再保理还款 {len(refactoring_repay_rows)}")
+    return total_added
+
+
+def process_asset_detail_sheet(wb, loan_rows: List[Sequence], target_date: dt.date) -> int:
+    """
+    处理【资产明细】sheet
+    数据来源仅为放款明细
+    返回新增行数
+    """
+    ws = find_sheet_by_name(wb, SHEET_ASSET_DETAIL)
+    template_cache = cache_template_row(ws, TEMPLATE_ROW_INDEX)
+    template_height = ws.row_dimensions[TEMPLATE_ROW_INDEX].height
+
+    total_added = append_asset_detail_block(ws, template_cache, template_height, TEMPLATE_ROW_INDEX, loan_rows)
+
+    print(f"[资产明细] 新增 {total_added} 行")
+    return total_added
+
+
 def main():
     args = parse_args()
     target_date = parse_input_date(args.date)
@@ -450,39 +596,22 @@ def main():
     refactoring_path = Path(args.refactoring_repay).resolve()
     output_path = Path(args.output).resolve()
 
+    # 加载台账工作簿
     wb = load_workbook(ledger_path, data_only=False)
-    ws = find_target_sheet(wb)
-    template_cache = cache_template_row(ws, TEMPLATE_ROW_INDEX)
-    template_height = ws.row_dimensions[TEMPLATE_ROW_INDEX].height
 
-    last_date = get_last_existing_date(ws)
-    if last_date and target_date <= last_date:
-        # 无需更新，直接输出原文件
-        wb.save(output_path)
-        print(f"[ledger_daily] {output_path} 已生成（未追加，{target_date} <= {last_date}）")
-        return
-
-    append_start_row = find_last_data_row(ws) + 1
-
+    # 收集数据（统一查询条件）
     loan_rows = collect_loan_rows(loan_path, target_date)
     factoring_repay_rows = collect_repay_rows(factoring_path, target_date)
     refactoring_repay_rows = collect_repay_rows(refactoring_path, target_date)
 
+    # 处理各个 sheet
     total_added = 0
-    total_added += append_loan_block(ws, template_cache, template_height, TEMPLATE_ROW_INDEX, loan_rows)
-    total_added += append_repay_block(ws, template_cache, template_height, TEMPLATE_ROW_INDEX, factoring_repay_rows, "保理")
-    total_added += append_repay_block(ws, template_cache, template_height, TEMPLATE_ROW_INDEX, refactoring_repay_rows, "再保理")
+    total_added += process_financing_repayment_sheet(wb, loan_rows, factoring_repay_rows, refactoring_repay_rows, target_date)
+    total_added += process_asset_detail_sheet(wb, loan_rows, target_date)
 
-    if total_added:
-        merge_ai_with_sum(ws, append_start_row, ws.max_row, target_date)
-        # 为新增行的 B 列应用条件格式（文本时显示特殊样式）
-        apply_b_column_conditional_format(ws, append_start_row, ws.max_row)
-
+    # 保存输出
     wb.save(output_path)
-    print(
-        f"[ledger_daily] 完成写入 -> {output_path}，新增 {total_added} 行；"
-        f" 放款 {len(loan_rows)} 行，保理还款 {len(factoring_repay_rows)} 行，再保理还款 {len(refactoring_repay_rows)} 行"
-    )
+    print(f"[ledger_daily] 完成写入 -> {output_path}，总计新增 {total_added} 行")
 
 
 if __name__ == "__main__":
