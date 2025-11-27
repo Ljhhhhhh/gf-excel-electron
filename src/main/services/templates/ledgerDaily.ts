@@ -29,9 +29,14 @@ function resolvePythonScriptPath(): string {
 }
 
 function resolvePythonExecutable(): string {
-  // 开发环境：使用 resources/python-embed/python.exe
+  // macOS 直接使用系统 Python
+  if (process.platform === 'darwin') {
+    return process.env.PYTHON_PATH || 'python3'
+  }
+
+  // Windows：开发环境使用 resources/python-embed/python.exe
   const devPath = path.join(process.cwd(), 'resources', 'python-embed', 'python.exe')
-  // 生产环境：使用打包后的 python-embed/python.exe
+  // Windows：生产环境使用打包后的 python-embed/python.exe
   const prodPath = path.join(process.resourcesPath ?? process.cwd(), 'python-embed', 'python.exe')
 
   if (fs.existsSync(devPath)) {
