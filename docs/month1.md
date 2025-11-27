@@ -47,7 +47,7 @@
    - 对这些行 AW 列“放款金额”求和，得到本月“基建工程”放款金额（元），记为 `infraAmount`;
    - 若 `monthlySummary.newLoanAmount > 0`，则：
      > monthlySummary.newInfraRatio = infraAmount ÷ (monthlySummary.newLoanAmount × 10000) × 100
-     即：行业金额 ÷ 本月总放款金额 × 100，结果为百分数数值（如 35.6 表示 35.6%）；
+     > 即：行业金额 ÷ 本月总放款金额 × 100，结果为百分数数值（如 35.6 表示 35.6%）；
    - 若 `monthlySummary.newLoanAmount = 0`，则 `monthlySummary.newInfraRatio` 记为 0。
 5. **`monthlySummary.newMedicalRatio`**（医药占比，单位：%）
    - 条件同上，将 AA 列行业改为 “医药医疗”；
