@@ -18,7 +18,8 @@ from typing import Dict, Iterable, List, Optional, Sequence
 
 from openpyxl import load_workbook
 from openpyxl.formula.translate import Translator
-from openpyxl.styles import PatternFill, Font
+from openpyxl.styles import PatternFill, Font, Alignment
+from openpyxl.formatting.rule import FormulaRule
 from openpyxl.utils import column_index_from_string, get_column_letter
 
 # === 常量 ===
@@ -205,9 +206,30 @@ def apply_template_row(ws, template_cache, target_row: int, template_row_index: 
         ws.row_dimensions[target_row].height = template_height
 
 
-def apply_b_column_style(cell):
-    cell.fill = PatternFill(fill_type='solid', fgColor='FFFFE699')
-    cell.font = Font(color='FFC00000', size=11, bold=True)
+def apply_b_column_conditional_format(ws, start_row: int, end_row: int):
+    """
+    对 B 列指定范围应用条件格式：
+    - 当公式计算结果为文本时，应用黄底红字加粗样式
+    - 当公式计算结果为数字时，不应用样式（使用模板默认样式）
+    """
+    if start_row > end_row:
+        return
+
+    # 定义文本时的样式
+    text_fill = PatternFill(start_color='FFFFE699', end_color='FFFFE699', fill_type='solid')
+    text_font = Font(color='FFC00000', size=11, bold=True)
+
+    # 条件格式规则：当 B 列值为文本时应用样式
+    # 使用 ISTEXT 函数判断，$B 表示列固定，行号相对
+    formula_rule = FormulaRule(
+        formula=[f'ISTEXT($B{start_row})'],
+        fill=text_fill,
+        font=text_font
+    )
+
+    # 应用到 B 列指定范围
+    range_string = f'B{start_row}:B{end_row}'
+    ws.conditional_formatting.add(range_string, formula_rule)
 
 
 def collect_loan_rows(path: Path, target_date: dt.date) -> List[Sequence]:
@@ -251,12 +273,23 @@ def append_loan_block(ws, template_cache, template_height, template_row_index, r
     for record in rows:
         target_row = start_row + added + 1
         apply_template_row(ws, template_cache, target_row, template_row_index, template_height)
-        apply_b_column_style(ws.cell(row=target_row, column=COL_B))
+        # B 列样式通过条件格式统一处理，不再逐行应用
 
         set_cell(ws, target_row, COL_C, None)
         set_cell(ws, target_row, COL_D, record[LOAN_COL_B - 1])
-        set_cell(ws, target_row, COL_E, record[LOAN_COL_AE - 1])
-        set_cell(ws, target_row, COL_F, record[LOAN_COL_AG - 1])
+        loan_e = record[LOAN_COL_AE - 1]
+        if isinstance(loan_e, str):
+            loan_e = loan_e.replace('业务', '')
+
+        set_cell(ws, target_row, COL_E, loan_e)
+        # F列：明保->明保理，暗保->暗保理
+        loan_f = record[LOAN_COL_AG - 1]
+        if isinstance(loan_f, str):
+            if loan_f.strip() == '明保':
+                loan_f = '明保理'
+            elif loan_f.strip() == '暗保':
+                loan_f = '暗保理'
+        set_cell(ws, target_row, COL_F, loan_f)
         set_cell(ws, target_row, COL_G, record[LOAN_COL_K - 1])
         set_cell(ws, target_row, COL_H, record[LOAN_COL_C - 1])
         set_cell(ws, target_row, COL_I, record[LOAN_COL_G - 1])
@@ -266,10 +299,13 @@ def append_loan_block(ws, template_cache, template_height, template_row_index, r
         set_cell(ws, target_row, COL_K, loan_k if loan_k not in (None, "") else "/")
         set_cell(ws, target_row, COL_L, record[LOAN_COL_AA - 1])
         set_cell(ws, target_row, COL_N, record[LOAN_COL_AK - 1])
+        ws.cell(row=target_row, column=COL_N).alignment = Alignment(horizontal='left')
         # O 列保留模板公式 (=GX&"-"&TX)
         set_cell(ws, target_row, COL_P, record[LOAN_COL_M - 1])
+        ws.cell(row=target_row, column=COL_P).alignment = Alignment(horizontal='center')
         set_cell(ws, target_row, COL_Q, record[LOAN_COL_L - 1])
         set_cell(ws, target_row, COL_R, record[LOAN_COL_AK - 1])
+        ws.cell(row=target_row, column=COL_R).alignment = Alignment(horizontal='left')
         biz_mode = record[LOAN_COL_Y - 1]
         set_cell(ws, target_row, COL_S, "保理" if isinstance(biz_mode, str) and biz_mode.strip() == "直接投放" else "再保理")
         set_cell(ws, target_row, COL_T, record[LOAN_COL_N - 1])
@@ -299,12 +335,22 @@ def append_repay_block(ws, template_cache, template_height, template_row_index, 
     for record in rows:
         target_row = start_row + added + 1
         apply_template_row(ws, template_cache, target_row, template_row_index, template_height)
-        apply_b_column_style(ws.cell(row=target_row, column=COL_B))
+        # B 列样式通过条件格式统一处理，不再逐行应用
 
         set_cell(ws, target_row, COL_C, None)
         set_cell(ws, target_row, COL_D, record[REPAY_COL_G - 1])
-        set_cell(ws, target_row, COL_E, record[REPAY_COL_H - 1])
-        set_cell(ws, target_row, COL_F, record[REPAY_COL_J - 1])
+        repay_e = record[REPAY_COL_H - 1]
+        if isinstance(repay_e, str):
+            repay_e = repay_e.replace('业务', '')
+        set_cell(ws, target_row, COL_E, repay_e)
+        # F列：明保->明保理，暗保->暗保理
+        repay_f = record[REPAY_COL_J - 1]
+        if isinstance(repay_f, str):
+            if repay_f.strip() == '明保':
+                repay_f = '明保理'
+            elif repay_f.strip() == '暗保':
+                repay_f = '暗保理'
+        set_cell(ws, target_row, COL_F, repay_f)
         set_cell(ws, target_row, COL_G, record[REPAY_COL_M - 1])
         set_cell(ws, target_row, COL_H, record[REPAY_COL_B - 1])
         set_cell(ws, target_row, COL_I, record[REPAY_COL_C - 1])
@@ -429,6 +475,8 @@ def main():
 
     if total_added:
         merge_ai_with_sum(ws, append_start_row, ws.max_row, target_date)
+        # 为新增行的 B 列应用条件格式（文本时显示特殊样式）
+        apply_b_column_conditional_format(ws, append_start_row, ws.max_row)
 
     wb.save(output_path)
     print(
