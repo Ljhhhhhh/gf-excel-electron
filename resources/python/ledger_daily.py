@@ -23,6 +23,7 @@ from openpyxl.formula.translate import Translator
 from openpyxl.styles import PatternFill, Font, Alignment, alignment
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.utils import column_index_from_string, get_column_letter
+from openpyxl.utils.datetime import from_excel
 
 # === 常量 ===
 
@@ -30,6 +31,9 @@ TEMPLATE_ROW_INDEX = 10
 SHEET_FINANCING_REPAYMENT = "融资及还款明细"
 SHEET_ASSET_DETAIL = "资产明细"
 SHEET_ZHONGDENG = "中登登记表"
+SHEET_CUSTOMER = "客户表"
+SHEET_INTEREST = "利息缴纳"
+CUSTOMER_SOURCE_SHEET = "sheet1"
 
 # 目标表列
 COL_A = column_index_from_string("A")
@@ -98,15 +102,20 @@ LOAN_COL_T = column_index_from_string("T")
 LOAN_COL_U = column_index_from_string("U")
 
 # 还款明细列（保理/再保理）
+REPAY_COL_B = column_index_from_string("B")
+REPAY_COL_C = column_index_from_string("C")
+REPAY_COL_F = column_index_from_string("F")
 REPAY_COL_G = column_index_from_string("G")
 REPAY_COL_H = column_index_from_string("H")
 REPAY_COL_J = column_index_from_string("J")
 REPAY_COL_M = column_index_from_string("M")
-REPAY_COL_B = column_index_from_string("B")
-REPAY_COL_C = column_index_from_string("C")
-REPAY_COL_F = column_index_from_string("F")
-REPAY_COL_AE = column_index_from_string("AE")
 REPAY_COL_O = column_index_from_string("O")
+REPAY_COL_X = column_index_from_string("X")
+REPAY_COL_Y = column_index_from_string("Y")
+REPAY_COL_AB = column_index_from_string("AB")
+REPAY_COL_AC = column_index_from_string("AC")
+REPAY_COL_AD = column_index_from_string("AD")
+REPAY_COL_AE = column_index_from_string("AE")
 REPAY_COL_AG = column_index_from_string("AG")
 REPAY_COL_AH = column_index_from_string("AH")
 
@@ -150,6 +159,19 @@ ZD_COL_W = column_index_from_string("W")
 ZD_COL_X = column_index_from_string("X")
 ZD_COL_Y = column_index_from_string("Y")
 
+# 下载的《客户表》列索引（基于需求文档）
+CUSTOMER_SRC_COL_NAME = column_index_from_string("A")
+CUSTOMER_SRC_COL_CODE = column_index_from_string("B")
+CUSTOMER_SRC_COL_INDUSTRY = column_index_from_string("C")
+CUSTOMER_SRC_COL_ECONOMIC = column_index_from_string("D")
+CUSTOMER_SRC_COL_SCALE = column_index_from_string("E")
+CUSTOMER_SRC_COL_REGISTER_ADDR = column_index_from_string("F")
+CUSTOMER_SRC_COL_BUSINESS_ADDR = column_index_from_string("G")
+CUSTOMER_SRC_COL_ROLE = column_index_from_string("H")
+CUSTOMER_SRC_COL_LEGAL_REP = column_index_from_string("I")
+CUSTOMER_SRC_COL_LEGAL_ID = column_index_from_string("J")
+CUSTOMER_SRC_COL_REGION = column_index_from_string("L")
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Append ledger financing & repayment rows.")
@@ -158,6 +180,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--factoring-repay", required=True, help="保理融资还款明细路径")
     parser.add_argument("--refactoring-repay", required=True, help="再保理融资还款明细路径")
     parser.add_argument("--zhongdeng", required=True, help="中登登记表路径")
+    parser.add_argument("--customer", required=True, help="客户表路径（下载版）")
     parser.add_argument("--date", required=True, help="目标日期，格式 YYYYMMDD")
     parser.add_argument("--output", required=True, help="输出文件路径")
     return parser.parse_args()
@@ -175,6 +198,11 @@ def normalize_excel_date(value) -> Optional[dt.date]:
         return value.date()
     if isinstance(value, dt.date):
         return value
+    if isinstance(value, (int, float)):
+        try:
+            return from_excel(value).date()
+        except Exception:
+            return None
     if isinstance(value, str):
         text = value.strip()
         for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
@@ -296,15 +324,15 @@ def collect_loan_rows(path: Path, target_date: dt.date) -> List[Sequence]:
     return matched
 
 
-def collect_repay_rows(path: Path, target_date: dt.date) -> List[Sequence]:
+def collect_repay_rows(path: Path, target_date: dt.date, fee_type: str = "本金") -> List[Sequence]:
     wb = load_workbook(path, read_only=True, data_only=False)
     ws = wb.active
     matched: List[Sequence] = []
     for row in ws.iter_rows(min_row=2, values_only=True):
         if normalize_excel_date(row[REPAY_COL_AE - 1]) != target_date:
             continue
-        fee_type = row[column_index_from_string("AB") - 1]
-        if (fee_type or "").strip() != "本金":
+        fee_value = row[REPAY_COL_AB - 1]
+        if (fee_value or "").strip() != fee_type:
             continue
         matched.append(row)
     wb.close()
@@ -483,6 +511,58 @@ def append_repay_block(ws, template_cache, template_height, template_row_index, 
         set_cell(ws, target_row, COL_AQ, f"=XLOOKUP(AG{target_row},P:P,AD:AD)")
         set_cell(ws, target_row, COL_AR, record[REPAY_COL_AH - 1])
         added += 1
+    return added
+
+
+def extract_date_prefix(value):
+    text = normalize_string(value)
+    if not text:
+        return None
+    prefix = text.split("~", 1)[0].strip()
+    if not prefix:
+        return None
+    parsed = normalize_excel_date(prefix)
+    return parsed or prefix
+
+
+def append_interest_rows(ws, template_cache, template_height, template_row_index: int, rows: Iterable[Sequence], label: str) -> int:
+    added = 0
+    start_row = find_last_data_row(ws)
+
+    for record in rows:
+        target_row = start_row + added + 1
+        apply_template_row(ws, template_cache, target_row, template_row_index, template_height)
+
+        set_cell(ws, target_row, COL_D, record[REPAY_COL_O - 1])
+        set_cell(ws, target_row, COL_G, record[REPAY_COL_B - 1])
+        set_cell(ws, target_row, COL_J, None)
+        set_cell(ws, target_row, COL_K, record[REPAY_COL_AE - 1])
+        set_cell(ws, target_row, COL_L, "/")
+
+        prefix_date = extract_date_prefix(record[REPAY_COL_AC - 1])
+        set_cell(ws, target_row, COL_M, prefix_date)
+        set_cell(ws, target_row, COL_N, prefix_date)
+        set_cell(ws, target_row, COL_O, record[REPAY_COL_AD - 1])
+
+        set_cell(ws, target_row, COL_P, None)
+        set_cell(ws, target_row, COL_Q, None)
+        set_cell(ws, target_row, COL_W, None)
+
+        t_value = record[REPAY_COL_Y - 1]
+        if t_value in (None, ""):
+            t_value = record[REPAY_COL_X - 1]
+        set_cell(ws, target_row, COL_T, t_value)
+
+        amount = record[REPAY_COL_AG - 1]
+        set_cell(ws, target_row, COL_U, amount)
+        set_cell(ws, target_row, COL_V, amount)
+
+        set_cell(ws, target_row, COL_S, f"=ROUND(U{target_row}*360/T{target_row}/R{target_row},2)")
+
+        added += 1
+
+    if added:
+        print(f"[利息缴纳] {label}新增 {added} 行")
     return added
 
 
@@ -725,6 +805,208 @@ def process_zhongdeng_sheet(wb, zhongdeng_rows: List[Sequence]) -> int:
     return added
 
 
+def process_interest_sheet(wb, factoring_interest_rows: List[Sequence], refactoring_interest_rows: List[Sequence]) -> int:
+    if not factoring_interest_rows and not refactoring_interest_rows:
+        print("[利息缴纳] 目标日期无资金费记录，跳过")
+        return 0
+
+    ws = find_sheet_by_name(wb, SHEET_INTEREST)
+    template_cache = cache_template_row(ws, TEMPLATE_ROW_INDEX)
+    template_height = ws.row_dimensions[TEMPLATE_ROW_INDEX].height
+
+    total_added = 0
+    total_added += append_interest_rows(ws, template_cache, template_height, TEMPLATE_ROW_INDEX, factoring_interest_rows, "保理")
+    total_added += append_interest_rows(ws, template_cache, template_height, TEMPLATE_ROW_INDEX, refactoring_interest_rows, "再保理")
+
+    print(f"[利息缴纳] 合计新增 {total_added} 行")
+    return total_added
+
+
+# =============================================================================
+# 客户表 Sheet 处理函数
+# =============================================================================
+
+def collect_customer_names_from_financing(ws, target_date: dt.date) -> List[str]:
+    """
+    从【融资及还款明细】sheet 中筛选 W 列=目标日期的行，收集 H/I/J 列名称，按出现顺序去重
+    """
+    names: List[str] = []
+    seen: set[str] = set()
+    for row_idx in range(2, ws.max_row + 1):
+        loan_date = normalize_excel_date(ws.cell(row=row_idx, column=COL_W).value)
+        if loan_date != target_date:
+            continue
+        for col_idx in (COL_H, COL_I, COL_J):
+            name = normalize_string(ws.cell(row=row_idx, column=col_idx).value)
+            if not name or name == "/":
+                continue
+            if name not in seen:
+                seen.add(name)
+                names.append(name)
+    return names
+
+
+def collect_existing_customer_names(ws) -> set[str]:
+    existing: set[str] = set()
+    for row_idx in range(2, ws.max_row + 1):
+        name = normalize_string(ws.cell(row=row_idx, column=COL_E).value)
+        if name and name != "/":
+            existing.add(name)
+    return existing
+
+
+def build_asset_lookup_for_customers(ws, target_names: set[str]) -> Dict[str, Dict[str, object]]:
+    """
+    在【资产明细】sheet 中查找 P/R 列匹配的最早行，返回通道与日期信息
+    """
+    if not target_names:
+        return {}
+
+    lookup: Dict[str, Dict[str, object]] = {}
+    for row_idx in range(4, ws.max_row + 1):
+        for col_idx in (COL_P, COL_R):
+            candidate = normalize_string(ws.cell(row=row_idx, column=col_idx).value)
+            if candidate and candidate in target_names and candidate not in lookup:
+                lookup[candidate] = {
+                    "channel": ws.cell(row=row_idx, column=COL_C).value,
+                    "first_date": ws.cell(row=row_idx, column=COL_Y).value,
+                }
+        if len(lookup) == len(target_names):
+            break
+    return lookup
+
+
+def get_source_cell(row: Sequence, col_idx: int):
+    if row is None or col_idx <= 0:
+        return None
+    idx = col_idx - 1
+    if idx < len(row):
+        return row[idx]
+    return None
+
+
+def load_customer_source_map(path: Path) -> Dict[str, Sequence]:
+    wb = load_workbook(path, read_only=True, data_only=True)
+    try:
+        ws = wb[CUSTOMER_SOURCE_SHEET] if CUSTOMER_SOURCE_SHEET in wb.sheetnames else wb.active
+        mapping: Dict[str, Sequence] = {}
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            name = normalize_string(get_source_cell(row, CUSTOMER_SRC_COL_NAME))
+            if not name or name == "/":
+                continue
+            if name not in mapping:
+                mapping[name] = row
+        return mapping
+    finally:
+        wb.close()
+
+
+def map_channel_value(value):
+    text = normalize_string(value)
+    if not text:
+        return None
+    if text == "平台推荐":
+        return "渠道合作"
+    if text == "公司自拓":
+        return "国富自营"
+    return text
+
+
+def append_customer_rows(
+    ws,
+    template_cache,
+    template_height,
+    template_row_index: int,
+    names: List[str],
+    asset_lookup: Dict[str, Dict[str, object]],
+    customer_source: Dict[str, Sequence]
+) -> tuple[int, List[str], List[str]]:
+    added = 0
+    missing_asset: List[str] = []
+    missing_source: List[str] = []
+    start_row = find_last_data_row(ws)
+
+    for name in names:
+        target_row = start_row + added + 1
+        apply_template_row(ws, template_cache, target_row, template_row_index, template_height)
+
+        asset_info = asset_lookup.get(name)
+        source_row = customer_source.get(name)
+        if asset_info is None:
+            missing_asset.append(name)
+        if source_row is None:
+            missing_source.append(name)
+
+        set_cell(ws, target_row, COL_A, "=ROW()-1")
+        set_cell(ws, target_row, COL_B, map_channel_value(asset_info.get("channel") if asset_info else None))
+        set_cell(ws, target_row, COL_C, asset_info.get("first_date") if asset_info else None)
+        set_cell(ws, target_row, COL_D, get_source_cell(source_row, CUSTOMER_SRC_COL_REGION))
+        set_cell(ws, target_row, COL_E, name)
+        set_cell(ws, target_row, COL_F, get_source_cell(source_row, CUSTOMER_SRC_COL_ROLE))
+        set_cell(ws, target_row, COL_G, get_source_cell(source_row, CUSTOMER_SRC_COL_CODE))
+        set_cell(ws, target_row, COL_H, get_source_cell(source_row, CUSTOMER_SRC_COL_INDUSTRY))
+        for col_idx in (COL_I, COL_J, COL_K, COL_L, COL_M, COL_N):
+            set_cell(ws, target_row, col_idx, None)
+        set_cell(ws, target_row, COL_O, get_source_cell(source_row, CUSTOMER_SRC_COL_ECONOMIC))
+        set_cell(ws, target_row, COL_P, get_source_cell(source_row, CUSTOMER_SRC_COL_SCALE))
+        set_cell(ws, target_row, COL_Q, get_source_cell(source_row, CUSTOMER_SRC_COL_REGISTER_ADDR))
+        set_cell(ws, target_row, COL_R, get_source_cell(source_row, CUSTOMER_SRC_COL_BUSINESS_ADDR))
+        set_cell(ws, target_row, COL_S, get_source_cell(source_row, CUSTOMER_SRC_COL_ROLE))
+        set_cell(ws, target_row, COL_T, get_source_cell(source_row, CUSTOMER_SRC_COL_LEGAL_REP))
+        set_cell(ws, target_row, COL_U, get_source_cell(source_row, CUSTOMER_SRC_COL_LEGAL_ID))
+        for col_idx in (COL_V, COL_W, COL_X, COL_Y):
+            set_cell(ws, target_row, col_idx, None)
+
+        added += 1
+
+    return added, missing_asset, missing_source
+
+
+def process_customer_sheet(wb, customer_source_path: Path, target_date: dt.date) -> int:
+    ws_financing = find_sheet_by_name(wb, SHEET_FINANCING_REPAYMENT)
+    ws_asset = find_sheet_by_name(wb, SHEET_ASSET_DETAIL)
+    ws_customer = find_sheet_by_name(wb, SHEET_CUSTOMER)
+
+    candidate_names = collect_customer_names_from_financing(ws_financing, target_date)
+    if not candidate_names:
+        print("[客户表] 目标日期未发现新增客户，跳过")
+        return 0
+
+    existing_names = collect_existing_customer_names(ws_customer)
+    new_names = [name for name in candidate_names if name not in existing_names]
+    if not new_names:
+        print("[客户表] 目标日期客户已全部存在，跳过追加")
+        return 0
+
+    asset_lookup = build_asset_lookup_for_customers(ws_asset, set(new_names))
+    customer_source = load_customer_source_map(customer_source_path)
+
+    template_cache = cache_template_row(ws_customer, TEMPLATE_ROW_INDEX)
+    template_height = ws_customer.row_dimensions[TEMPLATE_ROW_INDEX].height
+
+    added, missing_asset, missing_source = append_customer_rows(
+        ws_customer,
+        template_cache,
+        template_height,
+        TEMPLATE_ROW_INDEX,
+        new_names,
+        asset_lookup,
+        customer_source
+    )
+
+    if added:
+        print(f"[客户表] 新增 {added} 行（资产明细缺失 {len(missing_asset)}，下载客户表缺失 {len(missing_source)}）")
+    else:
+        print("[客户表] 未新增行")
+
+    if missing_asset:
+        print("[客户表] 警告：资产明细未找到 -> " + ", ".join(missing_asset))
+    if missing_source:
+        print("[客户表] 警告：下载客户表未找到 -> " + ", ".join(missing_source))
+
+    return added
+
+
 def main():
     args = parse_args()
     target_date = parse_input_date(args.date)
@@ -734,6 +1016,7 @@ def main():
     factoring_path = Path(args.factoring_repay).resolve()
     refactoring_path = Path(args.refactoring_repay).resolve()
     zhongdeng_path = Path(args.zhongdeng).resolve()
+    customer_path = Path(args.customer).resolve()
     output_path = Path(args.output).resolve()
 
     # 加载台账工作簿
@@ -741,8 +1024,10 @@ def main():
 
     # 收集数据（统一查询条件）
     loan_rows = collect_loan_rows(loan_path, target_date)
-    factoring_repay_rows = collect_repay_rows(factoring_path, target_date)
-    refactoring_repay_rows = collect_repay_rows(refactoring_path, target_date)
+    factoring_repay_rows = collect_repay_rows(factoring_path, target_date, fee_type="本金")
+    refactoring_repay_rows = collect_repay_rows(refactoring_path, target_date, fee_type="本金")
+    factoring_interest_rows = collect_repay_rows(factoring_path, target_date, fee_type="资金费")
+    refactoring_interest_rows = collect_repay_rows(refactoring_path, target_date, fee_type="资金费")
     finance_codes = set()
     for row in loan_rows:
         code = normalize_string(row[LOAN_COL_L - 1])
@@ -755,6 +1040,8 @@ def main():
     total_added += process_financing_repayment_sheet(wb, loan_rows, factoring_repay_rows, refactoring_repay_rows, target_date)
     total_added += process_asset_detail_sheet(wb, loan_rows, target_date)
     total_added += process_zhongdeng_sheet(wb, zhongdeng_rows)
+    total_added += process_customer_sheet(wb, customer_path, target_date)
+    total_added += process_interest_sheet(wb, factoring_interest_rows, refactoring_interest_rows)
 
     # 保存输出
     wb.save(output_path)

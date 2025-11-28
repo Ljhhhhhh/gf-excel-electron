@@ -10,6 +10,7 @@ interface LedgerDailyParsedData {
   factoringRepayPath: string
   refactoringRepayPath: string
   zhongdengPath: string
+  customerPath: string
 }
 
 interface LedgerDailyUserInput {
@@ -21,7 +22,8 @@ const EXTRA_SOURCE_IDS = {
   loan: 'loanDetail',
   factoringRepay: 'factoringRepay',
   refactoringRepay: 'refactoringRepay',
-  zhongdeng: 'zhongdeng'
+  zhongdeng: 'zhongdeng',
+  customer: 'customer'
 }
 
 function resolvePythonScriptPath(): string {
@@ -59,16 +61,31 @@ function normalizeInputDate(value: string): string {
 }
 
 function ensureParsedData(data: Partial<LedgerDailyParsedData>): LedgerDailyParsedData {
-  const { ledgerPath, loanPath, factoringRepayPath, refactoringRepayPath, zhongdengPath } = data
-  if (!ledgerPath || !loanPath || !factoringRepayPath || !refactoringRepayPath || !zhongdengPath) {
-    throw new Error('缺少必需的台账/放款/还款/中登数据源路径')
+  const {
+    ledgerPath,
+    loanPath,
+    factoringRepayPath,
+    refactoringRepayPath,
+    zhongdengPath,
+    customerPath
+  } = data
+  if (
+    !ledgerPath ||
+    !loanPath ||
+    !factoringRepayPath ||
+    !refactoringRepayPath ||
+    !zhongdengPath ||
+    !customerPath
+  ) {
+    throw new Error('缺少必需的台账/放款/还款/中登/客户数据源路径')
   }
   return {
     ledgerPath,
     loanPath,
     factoringRepayPath,
     refactoringRepayPath,
-    zhongdengPath
+    zhongdengPath,
+    customerPath
   }
 }
 
@@ -92,7 +109,8 @@ async function ledgerDailyStreamParser(
     loanPath: extra[EXTRA_SOURCE_IDS.loan]?.path,
     factoringRepayPath: extra[EXTRA_SOURCE_IDS.factoringRepay]?.path,
     refactoringRepayPath: extra[EXTRA_SOURCE_IDS.refactoringRepay]?.path,
-    zhongdengPath: extra[EXTRA_SOURCE_IDS.zhongdeng]?.path
+    zhongdengPath: extra[EXTRA_SOURCE_IDS.zhongdeng]?.path,
+    customerPath: extra[EXTRA_SOURCE_IDS.customer]?.path
   })
 }
 
@@ -127,6 +145,8 @@ async function renderLedgerDailyWithPython(
       path.resolve(data.refactoringRepayPath),
       '--zhongdeng',
       path.resolve(data.zhongdengPath),
+      '--customer',
+      path.resolve(data.customerPath),
       '--date',
       targetDate,
       '--output',
@@ -171,32 +191,33 @@ export const ledgerDailyTemplate: TemplateDefinition<LedgerDailyUserInput> = {
     ext: 'xlsx',
     supportedSourceExts: ['xlsx'],
     description:
-      '按指定日期从“放款明细+保理/再保理融资还款明细”增量追加《融资及还款明细》，保持原公式/样式不变（Python openpyxl 实现）',
+      '按指定日期从“放款明细+保理/再保理融资还款明细+客户表”增量更新台账（融资及还款明细/资产明细/中登登记表/客户表/利息缴纳），保持原公式/样式不变（Python openpyxl 实现）',
     sourceLabel: '现有台账（xlsx）',
     extraSources: [
       {
         id: EXTRA_SOURCE_IDS.loan,
         label: '放款明细',
-        supportedExts: ['xlsx'],
-        loadStrategy: 'stream'
+        supportedExts: ['xlsx']
       },
       {
         id: EXTRA_SOURCE_IDS.factoringRepay,
         label: '保理融资还款明细',
-        supportedExts: ['xlsx'],
-        loadStrategy: 'stream'
+        supportedExts: ['xlsx']
       },
       {
         id: EXTRA_SOURCE_IDS.refactoringRepay,
         label: '再保理融资还款明细',
-        supportedExts: ['xlsx'],
-        loadStrategy: 'stream'
+        supportedExts: ['xlsx']
       },
       {
         id: EXTRA_SOURCE_IDS.zhongdeng,
         label: '中登登记表',
-        supportedExts: ['xlsx'],
-        loadStrategy: 'stream'
+        supportedExts: ['xlsx']
+      },
+      {
+        id: EXTRA_SOURCE_IDS.customer,
+        label: '客户表',
+        supportedExts: ['xlsx']
       }
     ]
   },
@@ -213,10 +234,12 @@ export const ledgerDailyTemplate: TemplateDefinition<LedgerDailyUserInput> = {
 - 仅更新《融资及还款明细》：先放款，再保理还款，再再保理还款
 - 若目标日期小于等于现有表中的最新日期（W/AE 列），则不追加
 - AI 列按 AE=目标日期 & 同 AR 的行合并，并写入 AH 求和
+- 利息缴纳：筛选资金费（AE=目标日期 & AB=资金费），保理+再保理依次追加，S 列写入 U*360/T/R
+- 客户表：取目标日期放款的申请人/买方/确权方，缺失时按模板第 10 行样式补充并带出下载客户表信息
 
 ### 数据源
 - 主文件：现有台账（xlsx）
-- 额外：放款明细、保理融资还款明细、再保理融资还款明细（均 xlsx）
+- 额外：放款明细、保理融资还款明细、再保理融资还款明细、中登登记表、客户表（均 xlsx）
     `.trim()
   },
   parser: ledgerDailyParser,
