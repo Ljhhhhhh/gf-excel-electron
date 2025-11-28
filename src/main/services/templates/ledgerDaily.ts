@@ -9,6 +9,7 @@ interface LedgerDailyParsedData {
   loanPath: string
   factoringRepayPath: string
   refactoringRepayPath: string
+  zhongdengPath: string
 }
 
 interface LedgerDailyUserInput {
@@ -19,7 +20,8 @@ interface LedgerDailyUserInput {
 const EXTRA_SOURCE_IDS = {
   loan: 'loanDetail',
   factoringRepay: 'factoringRepay',
-  refactoringRepay: 'refactoringRepay'
+  refactoringRepay: 'refactoringRepay',
+  zhongdeng: 'zhongdeng'
 }
 
 function resolvePythonScriptPath(): string {
@@ -57,15 +59,16 @@ function normalizeInputDate(value: string): string {
 }
 
 function ensureParsedData(data: Partial<LedgerDailyParsedData>): LedgerDailyParsedData {
-  const { ledgerPath, loanPath, factoringRepayPath, refactoringRepayPath } = data
-  if (!ledgerPath || !loanPath || !factoringRepayPath || !refactoringRepayPath) {
-    throw new Error('缺少必需的台账/放款/还款数据源路径')
+  const { ledgerPath, loanPath, factoringRepayPath, refactoringRepayPath, zhongdengPath } = data
+  if (!ledgerPath || !loanPath || !factoringRepayPath || !refactoringRepayPath || !zhongdengPath) {
+    throw new Error('缺少必需的台账/放款/还款/中登数据源路径')
   }
   return {
     ledgerPath,
     loanPath,
     factoringRepayPath,
-    refactoringRepayPath
+    refactoringRepayPath,
+    zhongdengPath
   }
 }
 
@@ -88,7 +91,8 @@ async function ledgerDailyStreamParser(
     ledgerPath: filePath,
     loanPath: extra[EXTRA_SOURCE_IDS.loan]?.path,
     factoringRepayPath: extra[EXTRA_SOURCE_IDS.factoringRepay]?.path,
-    refactoringRepayPath: extra[EXTRA_SOURCE_IDS.refactoringRepay]?.path
+    refactoringRepayPath: extra[EXTRA_SOURCE_IDS.refactoringRepay]?.path,
+    zhongdengPath: extra[EXTRA_SOURCE_IDS.zhongdeng]?.path
   })
 }
 
@@ -121,6 +125,8 @@ async function renderLedgerDailyWithPython(
       path.resolve(data.factoringRepayPath),
       '--refactoring-repay',
       path.resolve(data.refactoringRepayPath),
+      '--zhongdeng',
+      path.resolve(data.zhongdengPath),
       '--date',
       targetDate,
       '--output',
@@ -172,22 +178,25 @@ export const ledgerDailyTemplate: TemplateDefinition<LedgerDailyUserInput> = {
         id: EXTRA_SOURCE_IDS.loan,
         label: '放款明细',
         supportedExts: ['xlsx'],
-        loadStrategy: 'stream',
-        description: 'P 列按日期降序，按日期精确匹配'
+        loadStrategy: 'stream'
       },
       {
         id: EXTRA_SOURCE_IDS.factoringRepay,
         label: '保理融资还款明细',
         supportedExts: ['xlsx'],
-        loadStrategy: 'stream',
-        description: 'AE=日期且 AB=本金，按 AH 交易流水升序'
+        loadStrategy: 'stream'
       },
       {
         id: EXTRA_SOURCE_IDS.refactoringRepay,
         label: '再保理融资还款明细',
         supportedExts: ['xlsx'],
-        loadStrategy: 'stream',
-        description: 'AE=日期且 AB=本金，按 AH 交易流水升序'
+        loadStrategy: 'stream'
+      },
+      {
+        id: EXTRA_SOURCE_IDS.zhongdeng,
+        label: '中登登记表',
+        supportedExts: ['xlsx'],
+        loadStrategy: 'stream'
       }
     ]
   },

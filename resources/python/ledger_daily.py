@@ -20,7 +20,7 @@ from typing import Dict, Iterable, List, Optional, Sequence
 
 from openpyxl import load_workbook
 from openpyxl.formula.translate import Translator
-from openpyxl.styles import PatternFill, Font, Alignment
+from openpyxl.styles import PatternFill, Font, Alignment, alignment
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.utils import column_index_from_string, get_column_letter
 
@@ -29,6 +29,7 @@ from openpyxl.utils import column_index_from_string, get_column_letter
 TEMPLATE_ROW_INDEX = 10
 SHEET_FINANCING_REPAYMENT = "融资及还款明细"
 SHEET_ASSET_DETAIL = "资产明细"
+SHEET_ZHONGDENG = "中登登记表"
 
 # 目标表列
 COL_A = column_index_from_string("A")
@@ -126,6 +127,29 @@ LOAN_COL_AO = column_index_from_string("AO")
 LOAN_COL_AQ = column_index_from_string("AQ")
 LOAN_COL_AR = column_index_from_string("AR")
 
+# 涓櫥鐧昏琛ㄧ澶达細婧愭枃浠朵腑鐨勫垪鎸囧畾
+ZD_COL_C = column_index_from_string("C")
+ZD_COL_D = column_index_from_string("D")
+ZD_COL_E = column_index_from_string("E")
+ZD_COL_F = column_index_from_string("F")
+ZD_COL_G = column_index_from_string("G")
+ZD_COL_H = column_index_from_string("H")
+ZD_COL_I = column_index_from_string("I")
+ZD_COL_J = column_index_from_string("J")
+ZD_COL_K = column_index_from_string("K")
+ZD_COL_L = column_index_from_string("L")
+ZD_COL_M = column_index_from_string("M")
+ZD_COL_N = column_index_from_string("N")
+ZD_COL_O = column_index_from_string("O")
+ZD_COL_P = column_index_from_string("P")
+ZD_COL_R = column_index_from_string("R")
+ZD_COL_S = column_index_from_string("S")
+ZD_COL_T = column_index_from_string("T")
+ZD_COL_U = column_index_from_string("U")
+ZD_COL_W = column_index_from_string("W")
+ZD_COL_X = column_index_from_string("X")
+ZD_COL_Y = column_index_from_string("Y")
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Append ledger financing & repayment rows.")
@@ -133,6 +157,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--loan", required=True, help="放款明细路径")
     parser.add_argument("--factoring-repay", required=True, help="保理融资还款明细路径")
     parser.add_argument("--refactoring-repay", required=True, help="再保理融资还款明细路径")
+    parser.add_argument("--zhongdeng", required=True, help="中登登记表路径")
     parser.add_argument("--date", required=True, help="目标日期，格式 YYYYMMDD")
     parser.add_argument("--output", required=True, help="输出文件路径")
     return parser.parse_args()
@@ -158,6 +183,16 @@ def normalize_excel_date(value) -> Optional[dt.date]:
             except ValueError:
                 continue
     return None
+
+
+def normalize_string(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (int, float)):
+        return str(value).strip()
+    return str(value).strip()
 
 
 def find_sheet_by_name(wb, sheet_name: str) -> "Worksheet":
@@ -275,6 +310,45 @@ def collect_repay_rows(path: Path, target_date: dt.date) -> List[Sequence]:
     wb.close()
     # 按交易银行流水号（AH）升序
     return sorted(matched, key=lambda r: (r[REPAY_COL_AH - 1] is None, str(r[REPAY_COL_AH - 1])))
+
+
+def collect_zhongdeng_rows(path: Path, finance_codes: set[str]) -> List[Sequence]:
+    if not finance_codes:
+        return []
+
+    wb = load_workbook(path, read_only=True, data_only=False)
+    try:
+        ws = wb[SHEET_ZHONGDENG] if SHEET_ZHONGDENG in wb.sheetnames else wb.active
+        dedup: Dict[str, Sequence] = {}
+        fallback_index = 0
+
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            finance_code = normalize_string(row[ZD_COL_C - 1])
+            if not finance_code or finance_code not in finance_codes:
+                continue
+
+            reg_number = normalize_string(row[ZD_COL_I - 1])
+            reg_type = normalize_string(row[ZD_COL_F - 1])
+            key = reg_number or f"__row_{fallback_index}"
+            if not reg_number:
+                fallback_index += 1
+
+            existing = dedup.get(key)
+            if existing:
+                existing_type = normalize_string(existing[ZD_COL_F - 1])
+                if existing_type != "初始登记" and reg_type == "初始登记":
+                    dedup[key] = row
+                continue
+
+            dedup[key] = row
+
+        return [
+            row
+            for row in dedup.values()
+            if normalize_string(row[ZD_COL_F - 1]) == "初始登记"
+        ]
+    finally:
+        wb.close()
 
 
 def set_cell(ws, row_idx: int, col_idx: int, value):
@@ -490,7 +564,14 @@ def append_asset_detail_block(ws, template_cache, template_height, template_row_
         # I列：放款明细 AC列 是否票据增信
         set_cell(ws, target_row, COL_I, record[LOAN_COL_AC - 1])
         # J列：放款明细 AF列 有/无追索权
-        set_cell(ws, target_row, COL_J, record[LOAN_COL_AF - 1])
+        loan_j = record[LOAN_COL_AF - 1]
+        if isinstance(loan_j, str):
+            if loan_j.strip() == '有追':
+                # strip() 方法用于移除字符串开头和结尾的空白字符（包括空格、制表符、换行符等）。
+                loan_j = '有追索权'
+            elif loan_j.strip() == '无追':
+                loan_j = '无追索权'
+        set_cell(ws, target_row, COL_J, loan_j)
         # K列：放款明细 AG列 明暗保
         loan_k = record[LOAN_COL_AG - 1]
         if isinstance(loan_k, str):
@@ -535,6 +616,50 @@ def append_asset_detail_block(ws, template_cache, template_height, template_row_
         set_cell(ws, target_row, COL_AG, record[LOAN_COL_AN - 1])
         # AH列：固定为"正常"
         set_cell(ws, target_row, COL_AH, "正常")
+
+        added += 1
+    return added
+
+
+# =============================================================================
+# 中登登记表 Sheet 处理函数
+# =============================================================================
+
+def append_zhongdeng_block(ws, template_cache, template_height, template_row_index: int, rows: Iterable[Sequence]) -> int:
+    added = 0
+    start_row = ws.max_row
+    for record in rows:
+        target_row = start_row + added + 1
+        apply_template_row(ws, template_cache, target_row, template_row_index, template_height)
+
+        set_cell(ws, target_row, COL_A, "=ROW()-1")
+        set_cell(ws, target_row, COL_B, None)
+        set_cell(ws, target_row, COL_C, record[ZD_COL_C - 1])
+        set_cell(ws, target_row, COL_D, record[ZD_COL_D - 1])
+        set_cell(ws, target_row, COL_F, record[ZD_COL_E - 1])
+        set_cell(ws, target_row, COL_G, record[ZD_COL_F - 1])
+        zh_g_value = record[ZD_COL_G - 1]
+        set_cell(ws, target_row, COL_H, "" if zh_g_value is None else str(zh_g_value))
+        ws.cell(row=target_row, column=COL_H).number_format = "@"
+        set_cell(ws, target_row, COL_I, record[ZD_COL_H - 1])
+        set_cell(ws, target_row, COL_J, record[ZD_COL_I - 1])
+        set_cell(ws, target_row, COL_K, record[ZD_COL_J - 1])
+        ws.cell(row=target_row, column=COL_K).alignment = Alignment(wrap_text=False, horizontal="center", vertical="center")
+        set_cell(ws, target_row, COL_L, record[ZD_COL_K - 1])
+        set_cell(ws, target_row, COL_M, record[ZD_COL_L - 1])
+        ws.cell(row=target_row, column=COL_M).alignment = Alignment(wrap_text=False, horizontal="center", vertical="center")
+        set_cell(ws, target_row, COL_N, record[ZD_COL_M - 1])
+        set_cell(ws, target_row, COL_O, record[ZD_COL_N - 1])
+        set_cell(ws, target_row, COL_P, record[ZD_COL_O - 1])
+        set_cell(ws, target_row, COL_Q, record[ZD_COL_P - 1])
+        set_cell(ws, target_row, COL_R, "/")
+        set_cell(ws, target_row, COL_S, record[ZD_COL_R - 1])
+        set_cell(ws, target_row, COL_T, record[ZD_COL_S - 1])
+        set_cell(ws, target_row, COL_U, record[ZD_COL_T - 1])
+        set_cell(ws, target_row, COL_V, record[ZD_COL_U - 1])
+        set_cell(ws, target_row, COL_W, record[ZD_COL_W - 1])
+        set_cell(ws, target_row, COL_X, record[ZD_COL_X - 1])
+        set_cell(ws, target_row, COL_Y, record[ZD_COL_Y - 1])
 
         added += 1
     return added
@@ -586,6 +711,20 @@ def process_asset_detail_sheet(wb, loan_rows: List[Sequence], target_date: dt.da
     return total_added
 
 
+def process_zhongdeng_sheet(wb, zhongdeng_rows: List[Sequence]) -> int:
+    if not zhongdeng_rows:
+        print("[中登登记表] 匹配到 0 行，跳过追加")
+        return 0
+
+    ws = find_sheet_by_name(wb, SHEET_ZHONGDENG)
+    template_cache = cache_template_row(ws, TEMPLATE_ROW_INDEX)
+    template_height = ws.row_dimensions[TEMPLATE_ROW_INDEX].height
+
+    added = append_zhongdeng_block(ws, template_cache, template_height, TEMPLATE_ROW_INDEX, zhongdeng_rows)
+    print(f"[中登登记表] 新增 {added} 行")
+    return added
+
+
 def main():
     args = parse_args()
     target_date = parse_input_date(args.date)
@@ -594,6 +733,7 @@ def main():
     loan_path = Path(args.loan).resolve()
     factoring_path = Path(args.factoring_repay).resolve()
     refactoring_path = Path(args.refactoring_repay).resolve()
+    zhongdeng_path = Path(args.zhongdeng).resolve()
     output_path = Path(args.output).resolve()
 
     # 加载台账工作簿
@@ -603,11 +743,18 @@ def main():
     loan_rows = collect_loan_rows(loan_path, target_date)
     factoring_repay_rows = collect_repay_rows(factoring_path, target_date)
     refactoring_repay_rows = collect_repay_rows(refactoring_path, target_date)
+    finance_codes = set()
+    for row in loan_rows:
+        code = normalize_string(row[LOAN_COL_L - 1])
+        if code:
+            finance_codes.add(code)
+    zhongdeng_rows = collect_zhongdeng_rows(zhongdeng_path, finance_codes)
 
     # 处理各个 sheet
     total_added = 0
     total_added += process_financing_repayment_sheet(wb, loan_rows, factoring_repay_rows, refactoring_repay_rows, target_date)
     total_added += process_asset_detail_sheet(wb, loan_rows, target_date)
+    total_added += process_zhongdeng_sheet(wb, zhongdeng_rows)
 
     # 保存输出
     wb.save(output_path)
