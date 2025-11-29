@@ -223,6 +223,16 @@ def normalize_string(value) -> str:
     return str(value).strip()
 
 
+def normalize_amount_to_10k(value) -> Optional[float]:
+    if value in (None, ""):
+        return None
+    try:
+        numeric = float(str(value).replace(",", ""))
+    except Exception:
+        return None
+    return round(numeric / 10000, 2)
+
+
 def find_sheet_by_name(wb, sheet_name: str) -> "Worksheet":
     """ 根据名称查找工作表 """
     if sheet_name in wb.sheetnames:
@@ -535,6 +545,12 @@ def append_interest_rows(ws, template_cache, template_height, template_row_index
 
         set_cell(ws, target_row, COL_D, record[REPAY_COL_O - 1])
         set_cell(ws, target_row, COL_G, record[REPAY_COL_B - 1])
+        g_cell = ws.cell(row=target_row, column=COL_G)
+        base_alignment = g_cell.alignment or Alignment()
+        if hasattr(base_alignment, "copy"):
+            g_cell.alignment = base_alignment.copy(wrap_text=False, horizontal="left")
+        else:  # pragma: no cover - compatibility fallback
+            g_cell.alignment = Alignment(wrap_text=False, horizontal="left", vertical=base_alignment.vertical)
         set_cell(ws, target_row, COL_J, None)
         set_cell(ws, target_row, COL_K, record[REPAY_COL_AE - 1])
         set_cell(ws, target_row, COL_L, "/")
@@ -553,9 +569,10 @@ def append_interest_rows(ws, template_cache, template_height, template_row_index
             t_value = record[REPAY_COL_X - 1]
         set_cell(ws, target_row, COL_T, t_value)
 
-        amount = record[REPAY_COL_AG - 1]
+        amount = normalize_amount_to_10k(record[REPAY_COL_AG - 1])
         set_cell(ws, target_row, COL_U, amount)
         set_cell(ws, target_row, COL_V, amount)
+        set_cell(ws, target_row, COL_AA, amount)
 
         set_cell(ws, target_row, COL_S, f"=ROUND(U{target_row}*360/T{target_row}/R{target_row},2)")
 
