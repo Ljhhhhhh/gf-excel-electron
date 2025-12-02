@@ -569,10 +569,13 @@ def append_interest_rows(ws, template_cache, template_height, template_row_index
             t_value = record[REPAY_COL_X - 1]
         set_cell(ws, target_row, COL_T, t_value)
 
-        amount = normalize_amount_to_10k(record[REPAY_COL_AG - 1])
-        set_cell(ws, target_row, COL_U, amount)
-        set_cell(ws, target_row, COL_V, amount)
-        set_cell(ws, target_row, COL_AA, amount)
+        # amount = normalize_amount_to_10k(record[REPAY_COL_AG - 1])
+        # set_cell(ws, target_row, COL_U, amount)
+        # set_cell(ws, target_row, COL_V, amount)
+        # set_cell(ws, target_row, COL_AA, amount)
+        set_cell(ws, target_row, COL_U, record[REPAY_COL_AG - 1])
+        set_cell(ws, target_row, COL_V, record[REPAY_COL_AG - 1])
+        set_cell(ws, target_row, COL_AA, record[REPAY_COL_AG - 1])
 
         set_cell(ws, target_row, COL_S, f"=ROUND(U{target_row}*360/T{target_row}/R{target_row},2)")
 
@@ -681,6 +684,8 @@ def append_asset_detail_block(ws, template_cache, template_height, template_row_
         set_cell(ws, target_row, COL_M, record[LOAN_COL_AJ - 1])
         # N列：放款明细 AH列 正反向
         set_cell(ws, target_row, COL_N, record[LOAN_COL_AH - 1])
+        # O列：填入公式 =XLOOKUP(AG10000,中登登记表!J:J,中登登记表!U:U)，其中 AG10005 中的 10005 表示当前行号
+        set_cell(ws, target_row, COL_O, f"=XLOOKUP(AG{target_row},中登登记表!J:J,中登登记表!U:U)")
         # P列：放款明细 C列 保理/再保理申请人名称
         set_cell(ws, target_row, COL_P, record[LOAN_COL_C - 1])
         # Q列：放款明细 D列 统一社会信用代码
