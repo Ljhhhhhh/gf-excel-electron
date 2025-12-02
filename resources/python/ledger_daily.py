@@ -326,6 +326,8 @@ def apply_b_column_conditional_format(ws, start_row: int, end_row: int):
 def collect_loan_rows(path: Path, target_date: dt.date) -> List[Sequence]:
     wb = load_workbook(path, read_only=True, data_only=False)
     ws = wb.active
+    # 修复第三方 Excel 文件 dimension 信息不正确的问题
+    ws.reset_dimensions()
     matched: List[Sequence] = []
     for row in ws.iter_rows(min_row=2, values_only=True):
         if normalize_excel_date(row[LOAN_COL_P - 1]) == target_date:
@@ -337,6 +339,8 @@ def collect_loan_rows(path: Path, target_date: dt.date) -> List[Sequence]:
 def collect_repay_rows(path: Path, target_date: dt.date, fee_type: str = "本金") -> List[Sequence]:
     wb = load_workbook(path, read_only=True, data_only=False)
     ws = wb.active
+    # 修复第三方 Excel 文件 dimension 信息不正确的问题
+    ws.reset_dimensions()
     matched: List[Sequence] = []
     for row in ws.iter_rows(min_row=2, values_only=True):
         if normalize_excel_date(row[REPAY_COL_AE - 1]) != target_date:
@@ -357,6 +361,10 @@ def collect_zhongdeng_rows(path: Path, finance_codes: set[str]) -> List[Sequence
     wb = load_workbook(path, read_only=True, data_only=False)
     try:
         ws = wb[SHEET_ZHONGDENG] if SHEET_ZHONGDENG in wb.sheetnames else wb.active
+        # 修复第三方 Excel 文件 dimension 信息不正确的问题
+        # read_only 模式依赖文件中的 dimension 元数据，某些第三方系统生成的文件此信息可能不正确
+        # 调用 reset_dimensions() 可强制 openpyxl 扫描实际数据范围
+        ws.reset_dimensions()
         dedup: Dict[str, Sequence] = {}
         fallback_index = 0
 
@@ -911,6 +919,8 @@ def load_customer_source_map(path: Path) -> Dict[str, Sequence]:
     wb = load_workbook(path, read_only=True, data_only=True)
     try:
         ws = wb[CUSTOMER_SOURCE_SHEET] if CUSTOMER_SOURCE_SHEET in wb.sheetnames else wb.active
+        # 修复第三方 Excel 文件 dimension 信息不正确的问题
+        ws.reset_dimensions()
         mapping: Dict[str, Sequence] = {}
         for row in ws.iter_rows(min_row=2, values_only=True):
             name = normalize_string(get_source_cell(row, CUSTOMER_SRC_COL_NAME))
