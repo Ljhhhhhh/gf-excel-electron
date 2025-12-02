@@ -858,7 +858,7 @@ def collect_customer_names_from_financing(ws, target_date: dt.date) -> List[str]
         loan_date = normalize_excel_date(ws.cell(row=row_idx, column=COL_W).value)
         if loan_date != target_date:
             continue
-        for col_idx in (COL_H, COL_I, COL_J):
+        for col_idx in (COL_H, COL_I):
             name = normalize_string(ws.cell(row=row_idx, column=col_idx).value)
             if not name or name == "/":
                 continue
