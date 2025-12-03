@@ -329,7 +329,10 @@ def collect_loan_rows(path: Path, target_date: dt.date) -> List[Sequence]:
     # 修复第三方 Excel 文件 dimension 信息不正确的问题
     ws.reset_dimensions()
     matched: List[Sequence] = []
-    for row in ws.iter_rows(min_row=2, values_only=True):
+    for row in ws.iter_rows(min_row=2, max_col=LOAN_COL_BF, values_only=True):
+        # read_only + reset_dimensions 会裁掉行尾的空单元格，这里补齐到预期列数避免索引越界
+        if len(row) < LOAN_COL_BF:
+            row = tuple(row) + (None,) * (LOAN_COL_BF - len(row))
         if normalize_excel_date(row[LOAN_COL_P - 1]) == target_date:
             matched.append(row)
     wb.close()
@@ -342,7 +345,10 @@ def collect_repay_rows(path: Path, target_date: dt.date, fee_type: str = "本金
     # 修复第三方 Excel 文件 dimension 信息不正确的问题
     ws.reset_dimensions()
     matched: List[Sequence] = []
-    for row in ws.iter_rows(min_row=2, values_only=True):
+    for row in ws.iter_rows(min_row=2, max_col=REPAY_COL_AH, values_only=True):
+        # read_only + reset_dimensions 会裁掉行尾的空单元格，这里补齐到预期列数避免索引越界
+        if len(row) < REPAY_COL_AH:
+            row = tuple(row) + (None,) * (REPAY_COL_AH - len(row))
         if normalize_excel_date(row[REPAY_COL_AE - 1]) != target_date:
             continue
         fee_value = row[REPAY_COL_AB - 1]
@@ -368,7 +374,10 @@ def collect_zhongdeng_rows(path: Path, finance_codes: set[str]) -> List[Sequence
         dedup: Dict[str, Sequence] = {}
         fallback_index = 0
 
-        for row in ws.iter_rows(min_row=2, values_only=True):
+        for row in ws.iter_rows(min_row=2, max_col=ZD_COL_I, values_only=True):
+            # read_only + reset_dimensions 会裁掉行尾的空单元格，这里补齐到预期列数避免索引越界
+            if len(row) < ZD_COL_I:
+                row = tuple(row) + (None,) * (ZD_COL_I - len(row))
             finance_code = normalize_string(row[ZD_COL_C - 1])
             if not finance_code or finance_code not in finance_codes:
                 continue
@@ -922,7 +931,11 @@ def load_customer_source_map(path: Path) -> Dict[str, Sequence]:
         # 修复第三方 Excel 文件 dimension 信息不正确的问题
         ws.reset_dimensions()
         mapping: Dict[str, Sequence] = {}
-        for row in ws.iter_rows(min_row=2, values_only=True):
+        max_col = CUSTOMER_SRC_COL_REGION
+        for row in ws.iter_rows(min_row=2, max_col=max_col, values_only=True):
+            # read_only + reset_dimensions 会裁掉行尾的空单元格，这里补齐到预期列数避免索引越界
+            if len(row) < max_col:
+                row = tuple(row) + (None,) * (max_col - len(row))
             name = normalize_string(get_source_cell(row, CUSTOMER_SRC_COL_NAME))
             if not name or name == "/":
                 continue
