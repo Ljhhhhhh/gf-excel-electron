@@ -374,10 +374,10 @@ def collect_zhongdeng_rows(path: Path, finance_codes: set[str]) -> List[Sequence
         dedup: Dict[str, Sequence] = {}
         fallback_index = 0
 
-        for row in ws.iter_rows(min_row=2, max_col=ZD_COL_I, values_only=True):
+        for row in ws.iter_rows(min_row=2, max_col=ZD_COL_Y, values_only=True):
             # read_only + reset_dimensions 会裁掉行尾的空单元格，这里补齐到预期列数避免索引越界
-            if len(row) < ZD_COL_I:
-                row = tuple(row) + (None,) * (ZD_COL_I - len(row))
+            if len(row) < ZD_COL_Y:
+                row = tuple(row) + (None,) * (ZD_COL_Y - len(row))
             finance_code = normalize_string(row[ZD_COL_C - 1])
             if not finance_code or finance_code not in finance_codes:
                 continue
