@@ -436,7 +436,8 @@ function formatAmount(value: number, divisor: number, digits: number): number {
 
 function isSameYearMonth(date: Date | null, year: number, month: number): boolean {
   if (!date) return false
-  return date.getFullYear() === year && date.getMonth() + 1 === month
+  // 使用 UTC 方法保持与 parseExcelDate 的一致性
+  return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month
 }
 
 function isOnOrBefore(date: Date | null, target: Date): boolean {
@@ -445,8 +446,13 @@ function isOnOrBefore(date: Date | null, target: Date): boolean {
 }
 
 function createDateOrThrow(year: number, month: number, day: number): Date {
-  const date = new Date(year, month - 1, day)
-  if (date.getFullYear() !== year || date.getMonth() + 1 !== month || date.getDate() !== day) {
+  // 使用 UTC 方式创建日期，保持与 parseExcelDate 的一致性
+  const date = new Date(Date.UTC(year, month - 1, day))
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day
+  ) {
     throw new Error('[month1carbone] 截止日期不合法')
   }
   return date
@@ -488,8 +494,9 @@ function parseExcelDate(value: unknown): Date | null {
     return Number.isFinite(value.getTime()) ? value : null
   }
   if (typeof value === 'number') {
-    const epoch = new Date(1899, 11, 30)
-    const date = new Date(epoch.getTime() + value * 86400000)
+    // Excel 序列号纪元：1899-12-30 (UTC)，避免本地时区偏移
+    const EXCEL_EPOCH_MS = Date.UTC(1899, 11, 30)
+    const date = new Date(EXCEL_EPOCH_MS + value * 86400000)
     return Number.isFinite(date.getTime()) ? date : null
   }
   if (typeof value === 'string') {

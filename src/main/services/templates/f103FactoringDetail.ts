@@ -273,8 +273,9 @@ function parseExcelDate(value: any): Date | null {
     return Number.isFinite(parsed.getTime()) ? parsed : null
   }
   if (typeof value === 'number') {
-    const epoch = new Date(1899, 11, 30)
-    const ms = epoch.getTime() + value * 86400000
+    // Excel 序列号纪元：1899-12-30 (UTC)，避免本地时区偏移
+    const EXCEL_EPOCH_MS = Date.UTC(1899, 11, 30)
+    const ms = EXCEL_EPOCH_MS + value * 86400000
     const parsed = new Date(ms)
     return Number.isFinite(parsed.getTime()) ? parsed : null
   }
@@ -376,7 +377,8 @@ function filterRowsByMonth(
   return rows.filter((row) => {
     const date = parseExcelDate(row.actualLoanDate)
     if (!date) return false
-    return date.getFullYear() === year && date.getMonth() + 1 === month
+    // 使用 UTC 方法保持与 parseExcelDate 的一致性
+    return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month
   })
 }
 
@@ -392,6 +394,17 @@ async function renderWithExcelJS(
   const { year, month, formatted } = ensureValidMonth(userInput.fillMonth)
   const data = parsedData as FactoringParsedData
   const filteredRows = filterRowsByMonth(data.rows, year, month)
+
+  // 按发放日期（E列）升序排序
+  filteredRows.sort((a, b) => {
+    const dateA = parseExcelDate(a.actualLoanDate)
+    const dateB = parseExcelDate(b.actualLoanDate)
+    if (!dateA && !dateB) return 0
+    if (!dateA) return 1
+    if (!dateB) return -1
+    return dateA.getTime() - dateB.getTime()
+  })
+
   console.log(`[f103FactoringDetail] 生成 ${formatted} 数据，共 ${filteredRows.length} 条记录`)
 
   const workbook = new ExcelJS.Workbook()

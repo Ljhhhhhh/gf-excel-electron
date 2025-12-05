@@ -158,14 +158,15 @@ function extractDataRow(row: Row): Month4ParsedRow | null {
 
 function parseDate(value: any): Date | null {
   if (!value) return null
-  if (value instanceof Date) return value
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : null
   if (typeof value === 'string') {
     const parsed = new Date(value)
-    return isNaN(parsed.getTime()) ? null : parsed
+    return Number.isFinite(parsed.getTime()) ? parsed : null
   }
   if (typeof value === 'number') {
-    const excelEpoch = new Date(1899, 11, 30)
-    return new Date(excelEpoch.getTime() + value * 86400000)
+    // Excel 序列号纪元：1899-12-30 (UTC)，避免本地时区偏移
+    const EXCEL_EPOCH_MS = Date.UTC(1899, 11, 30)
+    return new Date(EXCEL_EPOCH_MS + value * 86400000)
   }
   return null
 }
@@ -182,7 +183,8 @@ function calculateAmount(
       const date = parseDate(row.actualLoanDate)
       if (!date) return false
 
-      const matchDate = date.getFullYear() === year && date.getMonth() + 1 === month
+      // 使用 UTC 方法保持与 parseDate 的一致性
+      const matchDate = date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month
       if (!matchDate) return false
 
       const level = String(row.businessLevel ?? '').trim()

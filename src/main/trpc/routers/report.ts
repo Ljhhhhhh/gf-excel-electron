@@ -81,7 +81,8 @@ export const reportRouter = router({
         outputDir: input.outputDir,
         reportName: input.reportName,
         renderOptions: input.renderOptions,
-        userInput: input.userInput
+        userInput: input.userInput,
+        extraSources: parseResult.extraSources
       })
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2)

@@ -1,7 +1,8 @@
 import ExcelJS from 'exceljs'
 import type { Workbook, Row } from 'exceljs'
 import { setImmediate as setImmediatePromise } from 'node:timers/promises'
-import type { TemplateDefinition, ParseOptions, FormCreateRule } from './types'
+import type { TemplateDefinition, ParseOptions, FormCreateRule, ExtraSourceContext } from './types'
+import { streamWorksheetRows } from './streamUtils'
 
 interface LocalStatisticsParseOptions extends ParseOptions {
   sheet?: string | number
@@ -24,6 +25,18 @@ interface LocalStatisticsParsedData {
 interface LocalStatisticsInput {
   period: string
 }
+
+/** 额外数据源 ID */
+const LEDGER_SOURCE_ID = 'ledger'
+
+/** 台账-融资及还款明细列索引（1-based） */
+const LEDGER_COLUMNS = {
+  financingAppNo: 20, // T 列：融资申请书编号
+  loanDate: 23 // W 列：放款日期
+} as const
+
+/** 台账数据起始行 */
+const LEDGER_DATA_START_ROW = 3
 
 interface ParsedPeriod {
   period: string
@@ -174,10 +187,11 @@ function extractRow(row: Row): LocalStatisticsParsedRow | null {
 
 function parseExcelDate(value: unknown): Date | null {
   if (!value) return null
-  if (value instanceof Date) return value
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : null
   if (typeof value === 'number') {
-    const excelEpoch = new Date(1899, 11, 30)
-    return new Date(excelEpoch.getTime() + value * 86400000)
+    // Excel 序列号纪元：1899-12-30 (UTC)，避免本地时区偏移
+    const EXCEL_EPOCH_MS = Date.UTC(1899, 11, 30)
+    return new Date(EXCEL_EPOCH_MS + value * 86400000)
   }
   if (typeof value === 'string') {
     const parsed = new Date(value)
@@ -241,8 +255,9 @@ function parsePeriodInput(input: string | undefined): ParsedPeriod {
 function isWithinPeriod(dateValue: unknown, period: ParsedPeriod): boolean {
   const date = parseExcelDate(dateValue)
   if (!date) return false
-  if (date.getFullYear() !== period.year) return false
-  return period.months.includes(date.getMonth() + 1)
+  // 使用 UTC 方法保持与 parseExcelDate 的一致性
+  if (date.getUTCFullYear() !== period.year) return false
+  return period.months.includes(date.getUTCMonth() + 1)
 }
 
 function sumLoanAmount(rows: LocalStatisticsParsedRow[]): number {
@@ -272,7 +287,82 @@ function uniqueCount(
   return uniqueValues.size
 }
 
-function buildReportData(parsedData: unknown, userInput?: LocalStatisticsInput) {
+/**
+ * 从台账【融资及还款明细】sheet 中统计融资申请书编号去重个数
+ * 筛选条件：W 列（放款日期）在用户输入年份的 1 月 1 日至输入月份（含）之间
+ */
+async function collectFactoringContractCountFromLedger(
+  extraSource: ExtraSourceContext,
+  period: ParsedPeriod
+): Promise<number> {
+  const sheetRef = '融资及还款明细'
+  const startRow = LEDGER_DATA_START_ROW
+  const uniqueAppNos = new Set<string>()
+
+  // 模式 1：workbook 已加载
+  if (extraSource.workbook) {
+    const worksheet = extraSource.workbook.getWorksheet(sheetRef)
+    if (!worksheet) {
+      console.warn(`[localStatistics] 台账工作簿中未找到工作表: ${sheetRef}`)
+      return 0
+    }
+
+    const endRow = worksheet.rowCount
+    for (let rowNum = startRow; rowNum <= endRow; rowNum++) {
+      const row = worksheet.getRow(rowNum)
+      if (!row.hasValues) continue
+
+      const loanDateValue = row.getCell(LEDGER_COLUMNS.loanDate).value
+      if (!isWithinPeriod(loanDateValue, period)) continue
+
+      const appNo = normalizeString(row.getCell(LEDGER_COLUMNS.financingAppNo).value)
+      if (appNo) {
+        uniqueAppNos.add(appNo)
+      }
+    }
+
+    console.log(
+      `[localStatistics] 台账融资申请书编号统计完成（workbook 模式），去重后共 ${uniqueAppNos.size} 个`
+    )
+    return uniqueAppNos.size
+  }
+
+  // 模式 2：流式读取
+  if (extraSource.createReader) {
+    await streamWorksheetRows(
+      {
+        readerFactory: extraSource.createReader,
+        sheet: sheetRef,
+        startRow,
+        rowYieldInterval: ROW_YIELD_INTERVAL
+      },
+      (row) => {
+        if (!row.hasValues) return
+
+        const loanDateValue = row.getCell(LEDGER_COLUMNS.loanDate).value
+        if (!isWithinPeriod(loanDateValue, period)) return
+
+        const appNo = normalizeString(row.getCell(LEDGER_COLUMNS.financingAppNo).value)
+        if (appNo) {
+          uniqueAppNos.add(appNo)
+        }
+      }
+    )
+
+    console.log(
+      `[localStatistics] 台账融资申请书编号统计完成（流式模式），去重后共 ${uniqueAppNos.size} 个`
+    )
+    return uniqueAppNos.size
+  }
+
+  throw new Error('[localStatistics] 台账数据源未提供可用的访问方式')
+}
+
+async function buildReportData(
+  parsedData: unknown,
+  userInput?: LocalStatisticsInput,
+  extraSources?: Record<string, ExtraSourceContext>
+) {
   if (!userInput) {
     throw new Error('缺少统计期间参数 period')
   }
@@ -290,7 +380,18 @@ function buildReportData(parsedData: unknown, userInput?: LocalStatisticsInput) 
   const agriSmallRows = scopedRows.filter((row) => isSmallEnterprise(row.enterpriseScale))
   const agriSmallAmount = convertToWan(sumLoanAmount(agriSmallRows))
   const servedCustomerCount = uniqueCount(scopedRows, (row) => normalizeString(row.customerName))
-  const factoringContractCount = uniqueCount(scopedRows, (row) => normalizeString(row.contractId))
+
+  // 从台账数据源统计保理合同数量
+  let factoringContractCount = 0
+  const ledgerSource = extraSources?.[LEDGER_SOURCE_ID]
+  if (ledgerSource) {
+    factoringContractCount = await collectFactoringContractCountFromLedger(
+      ledgerSource,
+      parsedPeriod
+    )
+  } else {
+    console.warn('[localStatistics] 未提供台账数据源，保理合同数量将为 0')
+  }
 
   return {
     period: parsedPeriod.period,
@@ -336,7 +437,16 @@ export const localStatisticsTemplate: TemplateDefinition<LocalStatisticsInput> =
     ext: 'xlsx',
     supportedSourceExts: ['xlsx'],
     description: '根据输入的年月统计当年 1 月至该月份的关键指标',
-    sourceLabel: '放款明细表（xlsx）'
+    sourceLabel: '放款明细表（xlsx）',
+    extraSources: [
+      {
+        id: LEDGER_SOURCE_ID,
+        label: '台账',
+        description: '请选择台账 Excel 文件（需包含【融资及还款明细】工作表）',
+        required: true,
+        supportedExts: ['xlsx']
+      }
+    ]
   },
   engine: 'carbone',
   inputRule: {
@@ -358,5 +468,6 @@ export const localStatisticsTemplate: TemplateDefinition<LocalStatisticsInput> =
   },
   parser: parseWorkbook,
   streamParser: streamParseWorkbook,
-  builder: buildReportData
+  builder: async (parsedData, userInput, extraSources) =>
+    buildReportData(parsedData, userInput, extraSources)
 }

@@ -34,7 +34,8 @@ const DEFAULT_CARBONE_OPTIONS = {
  * @returns 生成结果
  */
 export async function dataToReport(input: DataToReportInput): Promise<DataToReportResult> {
-  const { templateId, parsedData, outputDir, reportName, renderOptions, userInput } = input
+  const { templateId, parsedData, outputDir, reportName, renderOptions, userInput, extraSources } =
+    input
 
   log.info('开始生成报表', { templateId, outputDir })
 
@@ -109,7 +110,7 @@ export async function dataToReport(input: DataToReportInput): Promise<DataToRepo
     // 4.1. 调用模板的 buildReportData 构建 Carbone 数据
     let reportData
     try {
-      reportData = template.builder(parsedData, userInput)
+      reportData = await template.builder(parsedData, userInput, extraSources)
       log.info('报表数据已构建', { templateId })
     } catch (error) {
       throw new ReportRenderError(templateId, error)

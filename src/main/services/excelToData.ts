@@ -274,6 +274,7 @@ export async function excelToData(input: ExcelToDataInput): Promise<ExcelToDataR
     templateId,
     data: parsedData,
     warnings,
-    sourceMeta
+    sourceMeta,
+    extraSources: Object.keys(resolvedExtraSources).length ? resolvedExtraSources : undefined
   }
 }

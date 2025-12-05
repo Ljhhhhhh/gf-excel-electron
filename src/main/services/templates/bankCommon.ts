@@ -505,8 +505,9 @@ function parseDateValue(value: CellValue): Date | null {
   }
   if (typeof unwrapped === 'number') {
     if (!Number.isFinite(unwrapped)) return null
-    const epoch = new Date(1899, 11, 30)
-    return new Date(epoch.getTime() + unwrapped * 86400000)
+    // Excel 序列号纪元：1899-12-30 (UTC)，避免本地时区偏移
+    const EXCEL_EPOCH_MS = Date.UTC(1899, 11, 30)
+    return new Date(EXCEL_EPOCH_MS + unwrapped * 86400000)
   }
   if (typeof unwrapped === 'string') {
     if (isPlaceholder(unwrapped)) return null
@@ -534,7 +535,8 @@ function toDate(ymd: string): Date {
   const year = Number(ymd.slice(0, 4))
   const month = Number(ymd.slice(4, 6)) - 1
   const day = Number(ymd.slice(6, 8))
-  const date = new Date(year, month, day)
+  // 使用 UTC 方式创建日期，保持与 parseDateValue 的一致性
+  const date = new Date(Date.UTC(year, month, day))
   if (Number.isNaN(date.getTime())) {
     throw new Error(`无效日期: ${ymd}`)
   }
@@ -542,9 +544,10 @@ function toDate(ymd: string): Date {
 }
 
 function formatYmd(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
+  // 使用 UTC 方法保持一致性
+  const y = date.getUTCFullYear()
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(date.getUTCDate()).padStart(2, '0')
   return `${y}${m}${d}`
 }
 

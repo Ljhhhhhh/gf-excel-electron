@@ -290,7 +290,11 @@ export interface TemplateDefinition<TInput = unknown> {
   /** 流式解析器（可选，用于大文件优化） */
   streamParser?: StreamParser
   /** 报表数据构建器（类型安全的 userInput）- Carbone 模式使用 */
-  builder?: (parsedData: ParsedData, userInput?: TInput) => unknown
+  builder?: (
+    parsedData: ParsedData,
+    userInput?: TInput,
+    extraSources?: Record<string, ExtraSourceContext>
+  ) => unknown | Promise<unknown>
   /** Carbone 默认选项（可被 renderOptions 覆写）- Carbone 模式使用 */
   carboneOptions?: CarboneRenderOptions
   /** ExcelJS 渲染器 - ExcelJS 模式使用 */
@@ -329,6 +333,8 @@ export interface ExcelToDataResult {
   warnings: Warning[]
   /** 源文件元信息 */
   sourceMeta: SourceMeta
+  /** 已解析的额外数据源上下文（供 dataToReport 使用） */
+  extraSources?: Record<string, ExtraSourceContext>
 }
 
 /**
@@ -347,6 +353,8 @@ export interface DataToReportInput {
   renderOptions?: CarboneRenderOptions
   /** 用户输入参数（模板特定参数，如年月等） */
   userInput?: unknown
+  /** 额外数据源上下文（由 excelToData 解析后传递） */
+  extraSources?: Record<string, ExtraSourceContext>
 }
 
 /**
